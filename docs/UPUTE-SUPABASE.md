@@ -6,8 +6,15 @@ Bez ovoga CRM sprema podatke samo u pregledniku. S ovim su podaci na serveru, is
 1. Supabase → projekt **CRM** → lijevo **SQL Editor** → **New query**.
 2. Zalijepi cijeli sadržaj datoteke `supabase/schema.sql` i klikni **Run**. Mora pisati "Success".
 
-## 2. Tim (tko smije ući)
-U novom SQL upitu zamijeni emailove stvarnima i klikni **Run**:
+## 2. Tko smije ući
+**Varijanta A: jedan zajednički račun (jednostavno).** Svi ulaze istim emailom i lozinkom, a unutar aplikacije biraju tko su (Marko / Lea / Vanja) izbornikom dolje lijevo. Svaki uređaj pamti izbor.
+
+```sql
+insert into public.team (email, name) values ('tim@primjer.hr', 'Tim')
+on conflict (email) do update set name = excluded.name;
+```
+
+**Varijanta B: svatko svoj račun.** Imena moraju biti točno Marko, Lea, Vanja, a ime se određuje automatski iz prijave:
 
 ```sql
 insert into public.team (email, name) values
@@ -17,11 +24,9 @@ insert into public.team (email, name) values
 on conflict (email) do update set name = excluded.name;
 ```
 
-Imena moraju biti točno **Marko**, **Lea**, **Vanja**.
-
 ## 3. Korisnici i lozinke
 1. **Authentication** → **Users** → **Add user** → **Create new user**.
-2. Upiši email i lozinku, uključi **Auto Confirm User**, spremi. Ponovi za svih troje.
+2. Upiši email i lozinku (isti email kao u koraku 2), uključi **Auto Confirm User**, spremi. U varijanti B ponovi za svih troje.
 3. **Authentication** → **Sign In / Providers** → **Email**: isključi **Allow new users to sign up** (da se nitko drugi ne može registrirati).
 
 ## 4. Ključevi u Vercel

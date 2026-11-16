@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, remoteEnabled } from './supabase';
 import { initRemote, stopRemote, useSync } from '../data';
+import { TEAM } from '../seed';
 
-// null = lokalni način (bez prijave). Inače { name, email, signOut }.
+// null = lokalni način (bez prijave). Inače { name, email, shared, signOut }.
+// shared = zajednički račun (ime u tablici team nije Marko/Lea/Vanja): osobu se bira unutar aplikacije.
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
@@ -90,5 +92,5 @@ export function AuthGate({ children }) {
       </Shell>
     );
   }
-  return <AuthContext.Provider value={{ name, email: session.user.email, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ name, email: session.user.email, shared: !TEAM.includes(name), signOut }}>{children}</AuthContext.Provider>;
 }
