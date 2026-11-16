@@ -4,19 +4,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        navy: '#011329',
-        wine: { DEFAULT: '#68051A', dark: '#430512' },
-        gold: '#F8B42B',
-        mist: '#F1F2F3',
-        mute: '#949CA5',
-        soft: '#4F5962',
+        navy: '#1F2328',            // glavni tekst
+        ink: { DEFAULT: '#262A31', dark: '#14171B' }, // primarni gumbi, aktivni izbornik
+        wine: { DEFAULT: '#B42318', dark: '#912018' }, // upozorenja / brisanje
+        gold: '#E9C46A',
+        mist: '#F4F3F0',            // pozadina stranice
+        mute: '#9A9A94',
+        soft: '#5C6066',
       },
       fontFamily: {
-        serif: ['"Playfair Display"', 'serif'],
-        sans: ['Quicksand', 'system-ui', 'sans-serif'],
+        serif: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 1px 2px rgba(1,19,41,.04), 0 4px 16px rgba(1,19,41,.06)',
+        card: '0 1px 2px rgba(20,23,27,.04), 0 2px 8px rgba(20,23,27,.04)',
       },
     },
   },

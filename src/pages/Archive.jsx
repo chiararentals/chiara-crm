@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
-import FirmBadge, { FirmPicker } from '../components/FirmBadge';
+import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
+import { useFirm } from '../lib/firm';
 import { StayList } from './Stays';
 import { actions, useData } from '../data';
 import { useMe } from '../lib/me';
@@ -10,18 +11,18 @@ import { fmtDateTime } from '../lib/dates';
 function DoneTasks() {
   const { todos } = useData();
   const [me] = useMe();
-  const [firm, setFirm] = useState('');
+  const [firm] = useFirm();
   const list = todos
     .filter((t) => t.done && (!firm || t.firm === firm))
     .sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
 
   return (
     <>
-      <div className="mb-4"><FirmPicker value={firm} onChange={(v) => setFirm(firm === v ? '' : v)} allowNone /></div>
+      <div className="mb-4"><FirmFilter /></div>
       {!list.length && <div className="card p-5 text-sm text-soft">Još nema odrađenih zadataka.</div>}
       <ul className="space-y-2">
         {list.map((t) => (
-          <li key={t.id} className="card flex items-start gap-3 p-3.5">
+          <li key={t.id} className="flex items-start gap-3 rounded-xl border border-black/5 p-3.5 shadow-card" style={firmCardStyle(t.firm)}>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold line-through decoration-mute/60">{t.title}</div>
               {t.description && <div className="mt-0.5 text-xs text-soft">{t.description}</div>}

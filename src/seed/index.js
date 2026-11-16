@@ -5,9 +5,9 @@ export const TEAM = ['Marko', 'Lea', 'Vanja'];
 
 // Firme i njihove boje (iz logotipa). `text` = boja slova na toj pozadini.
 export const FIRMS = {
-  chiara: { name: 'Chiara', color: '#7A1623', text: '#FFFFFF' },
-  bonvia: { name: 'Bonvia', color: '#C9B48A', text: '#011329' },
-  dux: { name: 'Dux', color: '#1E9E92', text: '#FFFFFF' },
+  chiara: { name: 'Chiara', color: '#B4233A', ink: '#8A1A2C', text: '#FFFFFF' },
+  bonvia: { name: 'Bonvia', color: '#C9B48A', ink: '#7A6330', text: '#1F2328' },
+  dux: { name: 'Dux', color: '#1E9E92', ink: '#0F6B62', text: '#FFFFFF' },
 };
 export const FIRM_KEYS = Object.keys(FIRMS);
 

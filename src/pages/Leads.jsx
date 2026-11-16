@@ -2,10 +2,11 @@ import { useMemo, useRef, useState } from 'react';
 import { Plus, Upload, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown } from 'lucide-react';
 import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
-import FirmBadge, { FirmPicker } from '../components/FirmBadge';
+import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
+import { useFirm } from '../lib/firm';
 import LeadForm from '../components/LeadForm';
 import { TEMPERATURES, followUpState, nextDate, parseExcel, waLink } from '../lib/leads';
-import { fmtShort, today } from '../lib/dates';
+import { fmtShort, today, plusDays } from '../lib/dates';
 
 function LeadCard({ lead, onEdit }) {
   const [open, setOpen] = useState(false);
@@ -20,14 +21,13 @@ function LeadCard({ lead, onEdit }) {
     ? `${state === 'late' ? 'Kasni · ' : ''}${fmtShort(lead.followUpDate)}`
     : 'Bez datuma';
   return (
-    <div className={`card p-3.5 ${state === 'late' ? 'ring-2 ring-red-500/60' : ''}`}>
+    <div className="rounded-xl border border-black/5 p-3.5 shadow-card" style={firmCardStyle(lead.firm)}>
       <button className="flex w-full items-start gap-2 text-left" onClick={() => setOpen(!open)}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm font-semibold">{lead.name}</span>
-            <FirmBadge firm={lead.firm} />
             <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span>
-            <span className={`badge ${state === 'late' ? 'bg-red-600 text-white' : state === 'today' ? 'bg-gold text-navy' : 'bg-mist text-soft'}`}>{dateBadge}</span>
+            <span className={`badge ${state === 'late' ? 'bg-red-100 text-red-700' : state === 'today' ? 'bg-gold/50 text-navy' : 'bg-black/5 text-soft'}`}>{dateBadge}</span>
           </div>
           {lead.wants && <div className="mt-1 line-clamp-2 text-xs text-soft">{lead.wants}</div>}
           {lead.nextStep && <div className="mt-1 text-xs font-semibold text-navy">→ {lead.nextStep}</div>}
@@ -63,6 +63,26 @@ function LeadCard({ lead, onEdit }) {
   );
 }
 
+const RANGES = {
+  all: 'Svi datumi', late: 'Kasne', today: 'Danas', week: 'Ovih 7 dana', next7: 'Sljedećih 7 dana',
+  month: 'Idući 30 dana', none: 'Bez datuma', custom: 'Odabrani raspon…',
+};
+function inRange(l, range, from, to) {
+  const d = l.followUpDate;
+  const t = today();
+  switch (range) {
+    case 'late': return d && d < t;
+    case 'today': return d === t;
+    case 'week': return d && d >= plusDays(t, -7) && d <= t;
+    case 'next7': return d && d >= t && d <= plusDays(t, 7);
+    case 'month': return d && d >= t && d <= plusDays(t, 30);
+    case 'none': return !d;
+    case 'custom': return d && (!from || d >= from) && (!to || d <= to);
+    default: return true;
+  }
+}
+const PAGE = 20;
+
 const SECTIONS = [
   ['late', 'Kasne'], ['today', 'Danas'], ['soon', 'Uskoro'], ['none', 'Bez datuma'],
 ];
@@ -70,7 +90,11 @@ const SECTIONS = [
 export default function Leads() {
   const { leads } = useData();
   const [form, setForm] = useState(null);
-  const [firm, setFirm] = useState('');
+  const [firm] = useFirm();
+  const [range, setRange] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [limits, setLimits] = useState({});
   const [temp, setTemp] = useState('');
   const [q, setQ] = useState('');
   const [importFirm, setImportFirm] = useState('dux');
@@ -82,9 +106,11 @@ export default function Leads() {
     return leads
       .filter((l) => !firm || l.firm === firm)
       .filter((l) => !temp || l.temperature === temp)
+      .filter((l) => inRange(l, range, from, to))
       .filter((l) => !needle || [l.name, l.email, l.phone, l.wants, l.location].some((v) => (v || '').toLowerCase().includes(needle)))
       .sort((a, b) => (a.followUpDate || '9999').localeCompare(b.followUpDate || '9999') || (a.temperature === 'vruc' ? -1 : 1));
-  }, [leads, firm, temp, q]);
+  }, [leads, firm, temp, q, range, from, to]);
+  const counts = Object.fromEntries(['chiara', 'bonvia', 'dux'].map((k) => [k, leads.filter((l) => l.firm === k).length]));
   const lateCount = leads.filter((l) => followUpState(l) === 'late').length;
   const todayCount = leads.filter((l) => followUpState(l) === 'today').length;
 
@@ -120,11 +146,21 @@ export default function Leads() {
 
       {msg && <div className="card mb-4 p-3 text-sm text-soft">{msg}</div>}
 
+      <div className="mb-3"><FirmFilter counts={counts} /></div>
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <FirmPicker value={firm} onChange={(v) => setFirm(firm === v ? '' : v)} allowNone />
         {Object.entries(TEMPERATURES).map(([k, v]) => (
           <button key={k} onClick={() => setTemp(temp === k ? '' : k)} className={temp === k ? 'btn-primary' : 'btn-outline'}>{v.label}</button>
         ))}
+        <select className="field !w-auto !py-2 text-sm" value={range} onChange={(e) => setRange(e.target.value)} aria-label="Follow-up datum">
+          {Object.entries(RANGES).map(([k, v]) => <option key={k} value={k}>Follow-up: {v}</option>)}
+        </select>
+        {range === 'custom' && (
+          <>
+            <input type="date" className="field !w-auto !py-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Od datuma" />
+            <span className="text-mute">–</span>
+            <input type="date" className="field !w-auto !py-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Do datuma" />
+          </>
+        )}
         <input className="field !w-auto min-w-[10rem] flex-1 !py-2 text-sm" placeholder="Traži ime, email, telefon…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
@@ -134,10 +170,15 @@ export default function Leads() {
         if (!list.length) return null;
         return (
           <section key={st} className="mb-7">
-            <h2 className="mb-3 text-xl font-semibold">{title} <span className="badge bg-navy text-white">{list.length}</span></h2>
+            <h2 className="mb-3 text-xl font-semibold">{title} <span className="badge bg-ink text-white">{list.length}</span></h2>
             <div className="grid gap-3 md:grid-cols-2">
-              {list.map((l) => <LeadCard key={l.id} lead={l} onEdit={() => setForm(l)} />)}
+              {list.slice(0, limits[st] || PAGE).map((l) => <LeadCard key={l.id} lead={l} onEdit={() => setForm(l)} />)}
             </div>
+            {list.length > (limits[st] || PAGE) && (
+              <button className="btn-outline mt-3" onClick={() => setLimits({ ...limits, [st]: (limits[st] || PAGE) + 40 })}>
+                Prikaži još ({list.length - (limits[st] || PAGE)})
+              </button>
+            )}
           </section>
         );
       })}

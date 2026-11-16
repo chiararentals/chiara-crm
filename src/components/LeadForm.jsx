@@ -2,12 +2,14 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { FirmPicker } from './FirmBadge';
 import { actions } from '../data';
+import { useFirm } from '../lib/firm';
 import { TEMPERATURES } from '../lib/leads';
 
 export default function LeadForm({ lead, defaults = {}, onClose }) {
+  const [gFirm] = useFirm();
   const editing = !!lead;
   const [f, setF] = useState({
-    name: '', firm: 'dux', temperature: 'topao', email: '', phone: '', language: '', source: '',
+    name: '', firm: gFirm && gFirm !== 'chiara' ? gFirm : 'dux', temperature: 'topao', email: '', phone: '', language: '', source: '',
     wants: '', nextStep: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
     ...defaults, ...lead,
   });

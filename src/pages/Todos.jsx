@@ -3,9 +3,10 @@ import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, useDragg
 import { Check, Plus, CalendarClock } from 'lucide-react';
 import { actions, useData } from '../data';
 import { useMe } from '../lib/me';
-import { TEAM } from '../seed';
+import { TEAM, FIRMS } from '../seed';
 import PageHeader from '../components/PageHeader';
-import FirmBadge, { FirmPicker } from '../components/FirmBadge';
+import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
+import { useFirm } from '../lib/firm';
 import TodoForm from '../components/TodoForm';
 import { PRIORITIES, isOverdue, sortTodos } from '../lib/todos';
 import { fmtShort } from '../lib/dates';
@@ -16,8 +17,8 @@ function TodoCard({ todo, me, onEdit, onDone }) {
   return (
     <div
       ref={setNodeRef} {...attributes} {...listeners}
-      style={{ transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined, touchAction: 'manipulation' }}
-      className={`card p-3.5 ${isDragging ? 'z-50 rotate-1 shadow-xl' : ''} ${overdue ? 'ring-2 ring-red-500/70' : ''}`}
+      style={{ ...firmCardStyle(todo.firm), transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined, touchAction: 'manipulation' }}
+      className={`rounded-xl border border-black/5 p-3.5 shadow-card ${isDragging ? 'z-50 rotate-1 shadow-xl' : ''} ${overdue ? 'border-red-300' : ''}`}
     >
       <div className="flex items-start gap-3">
         <button
@@ -56,10 +57,10 @@ function TodoCard({ todo, me, onEdit, onDone }) {
 function Column({ name, children, count, isMe }) {
   const { setNodeRef, isOver } = useDroppable({ id: name });
   return (
-    <div ref={setNodeRef} className={`rounded-3xl p-3 transition-colors ${isOver ? 'bg-wine/10' : 'bg-white/50'}`}>
+    <div ref={setNodeRef} className={`rounded-2xl p-3 transition-colors ${isOver ? 'bg-black/[0.07]' : 'bg-black/[0.03]'}`}>
       <h2 className="mb-3 flex items-center gap-2 px-1 text-xl font-semibold">
-        {name} <span className="badge bg-navy text-white">{count}</span>
-        {isMe && <span className="badge bg-gold text-navy">ti</span>}
+        {name} <span className="badge bg-ink text-white">{count}</span>
+        {isMe && <span className="badge bg-gold/60 text-navy">ti</span>}
       </h2>
       <div className="min-h-[60px] space-y-3">{children}</div>
     </div>
@@ -71,7 +72,7 @@ export default function Todos() {
   const [me] = useMe();
   const [form, setForm] = useState(null); // {} = novi, todo = uređivanje
   const [onlyMine, setOnlyMine] = useState(false);
-  const [firm, setFirm] = useState('');
+  const [firm] = useFirm();
   const [undo, setUndo] = useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -82,6 +83,7 @@ export default function Todos() {
   const visible = todos.filter((t) => !t.done).filter((t) => !firm || t.firm === firm);
   const people = onlyMine ? [me] : TEAM;
   const overdueCount = todos.filter(isOverdue).length;
+  const counts = Object.fromEntries(Object.keys(FIRMS).map((k) => [k, todos.filter((t) => !t.done && t.firm === k).length]));
 
   const markDone = (todo) => {
     actions.toggleTodo(todo.id, me);
@@ -104,7 +106,7 @@ export default function Todos() {
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <button onClick={() => setOnlyMine(!onlyMine)} className={onlyMine ? 'btn-primary' : 'btn-outline'}>Moji zadaci</button>
-        <FirmPicker value={firm} onChange={(v) => setFirm(firm === v ? '' : v)} allowNone />
+        <FirmFilter counts={counts} />
       </div>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>

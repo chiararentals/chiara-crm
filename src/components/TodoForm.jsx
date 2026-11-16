@@ -3,15 +3,17 @@ import Modal from './Modal';
 import { FirmPicker } from './FirmBadge';
 import { actions } from '../data';
 import { useMe } from '../lib/me';
+import { useFirm } from '../lib/firm';
 import { TEAM } from '../seed';
 import { PRIORITIES } from '../lib/todos';
 import { today } from '../lib/dates';
 
 export default function TodoForm({ todo, defaults = {}, onClose }) {
   const [me] = useMe();
+  const [gFirm] = useFirm();
   const editing = !!todo;
   const [f, setF] = useState({
-    title: '', description: '', assignee: me, dueDate: today(), priority: 'normal', firm: 'chiara',
+    title: '', description: '', assignee: me, dueDate: today(), priority: 'normal', firm: gFirm || 'chiara',
     ...defaults, ...todo,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
