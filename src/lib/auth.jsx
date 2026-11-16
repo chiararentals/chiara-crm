@@ -46,6 +46,7 @@ export function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = još se provjerava
   const [name, setName] = useState(null);
   const [denied, setDenied] = useState(false);
+  const [dbError, setDbError] = useState('');
   const { ready, error } = useSync();
 
   useEffect(() => {
@@ -56,11 +57,12 @@ export function AuthGate({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!remoteEnabled || !session) { setName(null); setDenied(false); return undefined; }
+    if (!remoteEnabled || !session) { setName(null); setDenied(false); setDbError(''); return undefined; }
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from('team').select('name').maybeSingle();
+      const { data, error: err } = await supabase.from('team').select('name').maybeSingle();
       if (cancelled) return;
+      if (err) { console.error(err); setDbError(`${err.message}${err.code ? ` (${err.code})` : ''}`); return; }
       if (!data) { setDenied(true); return; }
       setName(data.name);
       initRemote();
@@ -74,6 +76,15 @@ export function AuthGate({ children }) {
 
   if (session === undefined) return <Shell><p className="text-sm text-soft">Učitavanje…</p></Shell>;
   if (!session) return <LoginForm />;
+  if (dbError) {
+    return (
+      <Shell>
+        <h1 className="text-xl font-bold">Greška baze</h1>
+        <p className="my-3 break-words text-sm text-soft">{dbError}</p>
+        <button className="btn-outline w-full" onClick={signOut}>Odjava</button>
+      </Shell>
+    );
+  }
   if (denied) {
     return (
       <Shell>
