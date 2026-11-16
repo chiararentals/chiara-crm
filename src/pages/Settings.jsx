@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Trash2, Plus } from 'lucide-react';
 import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
+import FirmBadge, { FirmPicker } from '../components/FirmBadge';
+import { TEAM } from '../seed';
+import { remoteEnabled } from '../lib/supabase';
 import { TEMPLATE_KINDS, LANGUAGES } from '../seed/templates';
 
 function AddRow({ placeholder, onAdd }) {
@@ -46,20 +49,43 @@ function Properties() {
   );
 }
 
-function Categories() {
-  const { categories } = useData();
+function Recurring() {
+  const { recurring } = useData();
+  const [f, setF] = useState({ title: '', firm: 'chiara', assignee: TEAM[0], repeat: 'daily' });
+  const add = (e) => { e.preventDefault(); if (f.title.trim()) { actions.addRecurring({ ...f, title: f.title.trim() }); setF({ ...f, title: '' }); } };
   return (
     <section className="card p-5">
-      <h2 className="mb-3 text-xl font-semibold">Kategorije zadataka</h2>
-      <div className="mb-3 flex flex-wrap gap-2">
-        {categories.map((c) => (
-          <span key={c.id} className="badge gap-2 py-1 text-white" style={{ background: c.color }}>
-            {c.name}
-            <button onClick={() => confirm(`Obrisati kategoriju "${c.name}"?`) && actions.deleteCategory(c.id)} aria-label="Obriši">×</button>
-          </span>
+      <h2 className="mb-1 text-xl font-semibold">Svakodnevni zadaci</h2>
+      <p className="mb-4 text-sm text-soft">Ovi se zadaci sami pojave svaki dan kod zadane osobe. Što se ne odradi tijekom dana, sutradan se zamijeni novim.</p>
+      <ul className="mb-4 space-y-2">
+        {recurring.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-mist p-2.5">
+            <FirmBadge firm={r.firm} />
+            <input className="field !w-auto min-w-[10rem] flex-1 !py-1.5 text-sm" defaultValue={r.title}
+              onBlur={(e) => e.target.value.trim() && actions.updateRecurring(r.id, { title: e.target.value.trim() })} />
+            <select className="field !w-auto !py-1.5 text-sm" value={r.assignee} onChange={(e) => actions.updateRecurring(r.id, { assignee: e.target.value })}>
+              {TEAM.map((n) => <option key={n}>{n}</option>)}
+            </select>
+            <select className="field !w-auto !py-1.5 text-sm" value={r.repeat} onChange={(e) => actions.updateRecurring(r.id, { repeat: e.target.value })}>
+              <option value="daily">Svaki dan</option>
+              <option value="workdays">Pon–pet</option>
+            </select>
+            <button className="p-1.5 text-mute hover:text-wine" aria-label="Obriši"
+              onClick={() => confirm(`Obrisati svakodnevni zadatak "${r.title}"?`) && actions.deleteRecurring(r.id)}><Trash2 size={16} /></button>
+          </li>
         ))}
-      </div>
-      <AddRow placeholder="Nova kategorija" onAdd={actions.addCategory} />
+      </ul>
+      <form onSubmit={add} className="space-y-3 border-t border-mist pt-4">
+        <FirmPicker value={f.firm} onChange={(firm) => setF({ ...f, firm })} />
+        <div className="flex flex-wrap gap-2">
+          <input className="field !w-auto min-w-[12rem] flex-1 !py-2 text-sm" placeholder="Novi svakodnevni zadatak" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+          <select className="field !w-auto !py-2 text-sm" value={f.assignee} onChange={(e) => setF({ ...f, assignee: e.target.value })}>{TEAM.map((n) => <option key={n}>{n}</option>)}</select>
+          <select className="field !w-auto !py-2 text-sm" value={f.repeat} onChange={(e) => setF({ ...f, repeat: e.target.value })}>
+            <option value="daily">Svaki dan</option><option value="workdays">Pon–pet</option>
+          </select>
+          <button className="btn-ghost !px-3" aria-label="Dodaj"><Plus size={18} /></button>
+        </div>
+      </form>
     </section>
   );
 }
@@ -93,14 +119,16 @@ export default function Settings() {
     <>
       <PageHeader title="Postavke" />
       <div className="space-y-5">
+        <Recurring />
         <Templates />
         <Properties />
-        <Categories />
+        {!remoteEnabled && (
         <section className="card p-5">
           <h2 className="mb-1 text-xl font-semibold">Testni podaci</h2>
           <p className="mb-3 text-sm text-soft">Ovo je probna verzija: podaci se spremaju samo u ovom pregledniku. Gumb vraća početne testne podatke.</p>
           <button className="btn-outline text-wine" onClick={() => confirm('Vratiti sve na testne podatke?') && actions.resetDemo()}>Vrati testne podatke</button>
         </section>
+        )}
       </div>
     </>
   );

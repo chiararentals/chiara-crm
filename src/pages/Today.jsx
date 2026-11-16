@@ -1,4 +1,11 @@
-import { useData } from '../data';
+import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import { actions, useData } from '../data';
+import { useMe } from '../lib/me';
+import { useFirm } from '../lib/firm';
+import FirmBadge, { firmCardStyle } from '../components/FirmBadge';
+import { followUpState } from '../lib/leads';
+import { isOverdue, sortTodos } from '../lib/todos';
 import PageHeader from '../components/PageHeader';
 import NewStayButton from '../components/NewStayButton';
 import StayCard from '../components/StayCard';
@@ -18,8 +25,42 @@ function Section({ title, date, arrivals, departures }) {
   );
 }
 
+function MyTasks() {
+  const { todos, leads } = useData();
+  const [me] = useMe();
+  const [firm] = useFirm();
+  const mine = sortTodos(todos.filter((t) => !t.done && t.assignee === me && t.dueDate && t.dueDate <= today() && (!firm || t.firm === firm)));
+  const due = leads.filter((l) => ['late', 'today'].includes(followUpState(l)) && (!firm || l.firm === firm));
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-2xl font-semibold">Moji zadaci danas <span className="badge bg-ink align-middle text-white">{mine.length}</span></h2>
+      {!mine.length && <div className="card p-5 text-sm text-soft">Sve je odrađeno. 🎉</div>}
+      <ul className="grid gap-2 md:grid-cols-2">
+        {mine.map((t) => (
+          <li key={t.id} className={`flex items-center gap-3 rounded-xl border p-3 shadow-card ${isOverdue(t) ? 'border-red-300' : 'border-black/5'}`} style={firmCardStyle(t.firm)}>
+            <button onClick={() => actions.toggleTodo(t.id, me)} aria-label="Označi odrađenim"
+              className="group flex h-6 w-6 flex-none items-center justify-center rounded-full border-2 border-soft/60 bg-white hover:border-emerald-600">
+              <Check size={15} strokeWidth={3} className="text-emerald-600 opacity-0 group-hover:opacity-60" />
+            </button>
+            <span className="min-w-0 flex-1 text-sm font-semibold">{t.title}</span>
+            <FirmBadge firm={t.firm} />
+          </li>
+        ))}
+      </ul>
+      {due.length > 0 && (
+        <Link to="/kupci" className="card mt-3 flex items-center justify-between p-3.5 text-sm font-semibold">
+          <span>{due.length} {due.length === 1 ? 'kupac čeka' : 'kupaca čeka'} follow-up (danas ili kasni)</span>
+          <span className="text-soft">Otvori →</span>
+        </Link>
+      )}
+    </section>
+  );
+}
+
 export default function Today() {
   const { stays } = useData();
+  const [firm] = useFirm();
+  const showStays = !firm || firm === 'chiara';
   const t = today();
   const tomorrow = plusDays(t, 1);
   const on = (date) => ({
@@ -29,9 +70,10 @@ export default function Today() {
 
   return (
     <>
-      <PageHeader title="Danas i sutra" subtitle="Dolasci i odlasci"><NewStayButton /></PageHeader>
-      <Section title="Danas" date={t} {...on(t)} />
-      <Section title="Sutra" date={tomorrow} {...on(tomorrow)} />
+      <PageHeader title="Danas i sutra" subtitle="Zadaci, dolasci i odlasci">{showStays && <NewStayButton />}</PageHeader>
+      <MyTasks />
+      {showStays && <Section title="Danas" date={t} {...on(t)} />}
+      {showStays && <Section title="Sutra" date={tomorrow} {...on(tomorrow)} />}
     </>
   );
 }
