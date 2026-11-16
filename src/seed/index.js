@@ -130,3 +130,9 @@ export function buildInitialState() {
 
   return { properties, units, stays, stayTasks, todos, recurring: RECURRING_SEED, leads, templates: TEMPLATES_SEED };
 }
+
+// Samo ono što aplikacija treba na početku prave baze: objekti, jedinice, predlošci, svakodnevni zadaci.
+export function buildBaseState() {
+  const { properties, units, templates, recurring } = buildInitialState();
+  return { properties, units, templates, recurring, stays: [], stayTasks: [], todos: [], leads: [] };
+}

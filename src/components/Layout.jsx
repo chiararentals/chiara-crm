@@ -2,6 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, ChevronsUpDown } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { useFirm } from '../lib/firm';
+import { useAuth } from '../lib/auth';
+import { useSync } from '../data';
 import { TEAM, FIRMS } from '../seed';
 
 // firms: na kojim prikazima firme se stavka vidi (boravci/gosti su samo Chiara)
@@ -33,6 +35,8 @@ function FirmSelect({ className = '' }) {
 export default function Layout() {
   const [me, setMe] = useMe();
   const [firm] = useFirm();
+  const auth = useAuth();
+  const { error } = useSync();
   const nav = NAV.filter((n) => !n.firms || n.firms.includes(firm));
 
   return (
@@ -52,9 +56,16 @@ export default function Layout() {
         </nav>
         <div className="mt-auto">
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-mute">Prijavljen/a kao</label>
-          <select value={me} onChange={(e) => setMe(e.target.value)} className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold">
-            {TEAM.map((n) => <option key={n}>{n}</option>)}
-          </select>
+          {auth ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm">
+              <span className="font-semibold">{me}</span>
+              <button onClick={auth.signOut} className="text-xs font-semibold text-mute hover:text-navy">Odjava</button>
+            </div>
+          ) : (
+            <select value={me} onChange={(e) => setMe(e.target.value)} className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold">
+              {TEAM.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          )}
         </div>
       </aside>
 
@@ -63,11 +74,16 @@ export default function Layout() {
         <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-black/5 bg-white/90 px-4 py-2.5 backdrop-blur lg:hidden" style={{ paddingTop: 'max(0.625rem, env(safe-area-inset-top))' }}>
           <span className="text-lg font-bold tracking-tight">CRM</span>
           <FirmSelect className="ml-2 flex-1 !py-1.5" />
-          <select value={me} onChange={(e) => setMe(e.target.value)} aria-label="Tko si ti" className="rounded-xl border border-black/10 bg-white px-2 py-1.5 text-sm font-semibold">
-            {TEAM.map((n) => <option key={n}>{n}</option>)}
-          </select>
+          {auth ? (
+            <button onClick={auth.signOut} className="rounded-xl border border-black/10 bg-white px-3 py-1.5 text-sm font-semibold" aria-label="Odjava">{me} ⎋</button>
+          ) : (
+            <select value={me} onChange={(e) => setMe(e.target.value)} aria-label="Tko si ti" className="rounded-xl border border-black/10 bg-white px-2 py-1.5 text-sm font-semibold">
+              {TEAM.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          )}
         </header>
 
+        {error && <div className="bg-red-50 px-4 py-2 text-center text-sm font-semibold text-red-700">{error}</div>}
         <main className="mx-auto max-w-5xl px-4 pb-28 pt-5 lg:px-8 lg:pb-10 lg:pt-8">
           <Outlet />
         </main>

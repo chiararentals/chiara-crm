@@ -1,8 +1,9 @@
-// "Sloj za podatke" – FAZA A: sve se sprema u preglednik (localStorage).
-// U fazi B ovu datoteku zamjenjuje supabaseStore.js s ISTIM funkcijama,
-// pa se ostatak aplikacije ne mijenja.
-import { buildInitialState, STANDARD_TASKS } from '../seed';
+// "Sloj za podatke". Bez Supabase ključeva sve se sprema u preglednik (localStorage);
+// s ključevima se isto stanje sprema u Supabase i sinkronizira uživo među korisnicima.
+import { buildInitialState, buildBaseState, STANDARD_TASKS } from '../seed';
 import { today } from '../lib/dates';
+import { remoteEnabled } from '../lib/supabase';
+import * as remote from './remote';
 
 const KEY = 'chiara-crm-v2';
 const uid = () => crypto.randomUUID();
@@ -16,15 +17,72 @@ function load() {
   return buildInitialState();
 }
 
-let state = load();
-
+const EMPTY = { properties: [], units: [], stays: [], stayTasks: [], todos: [], recurring: [], leads: [], templates: [] };
+let state = remoteEnabled ? EMPTY : load();
 const listeners = new Set();
 
+// Stanje veze s bazom (za prikaz greške i čekanje učitavanja)
+let status = { ready: !remoteEnabled, error: null };
+const statusListeners = new Set();
+function setStatus(patch) { status = { ...status, ...patch }; statusListeners.forEach((l) => l()); }
+export const sync = {
+  getState: () => status,
+  subscribe(fn) { statusListeners.add(fn); return () => statusListeners.delete(fn); },
+};
+
+// Upisi u bazu idu jedan za drugim, da se redoslijed ne pomiješa
+let queue = Promise.resolve();
+function enqueueWrite(prev, next) {
+  queue = queue
+    .then(() => remote.writeDiff(prev, next))
+    .then(() => status.error && setStatus({ error: null }))
+    .catch((e) => { console.error('Spremanje nije uspjelo', e); setStatus({ error: 'Spremanje nije uspjelo – provjeri internet i osvježi stranicu.' }); });
+}
+
 function commit(next) {
+  const prev = state;
   state = next;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* ignoriraj */ }
+  if (remoteEnabled) enqueueWrite(prev, next);
+  else { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* ignoriraj */ } }
   listeners.forEach((l) => l());
 }
+
+// Promjena koju je napravio netko drugi: primijeni u stanje, ali je ne upisuj ponovno u bazu
+function applyRemote(key, item, id) {
+  const list = state[key] || [];
+  const next = item
+    ? (list.some((x) => x.id === id) ? list.map((x) => (x.id === id ? item : x)) : [...list, item])
+    : list.filter((x) => x.id !== id);
+  if (JSON.stringify(next) === JSON.stringify(list)) return;
+  state = { ...state, [key]: next };
+  listeners.forEach((l) => l());
+}
+
+let unsubscribeRemote = null;
+// Poziva se nakon prijave: učitaj sve iz baze, po potrebi upiši početne objekte i slušaj promjene
+export async function initRemote() {
+  if (!remoteEnabled || status.ready) return;
+  try {
+    let loaded = await remote.fetchAll();
+    if (!loaded.properties.length) {          // prvi put: upiši objekte, jedinice i predloške
+      const base = buildBaseState();
+      state = loaded;
+      commit({ ...loaded, ...base });
+      await queue;
+      loaded = state;
+    }
+    state = loaded;
+    unsubscribeRemote = remote.subscribe(applyRemote);
+    setStatus({ ready: true, error: null });
+    listeners.forEach((l) => l());
+    actions.generateDaily();
+  } catch (e) {
+    console.error(e);
+    setStatus({ error: 'Učitavanje iz baze nije uspjelo. Provjeri postavke Supabasea i osvježi stranicu.' });
+  }
+}
+export function stopRemote() { unsubscribeRemote?.(); unsubscribeRemote = null; }
+
 const patchList = (list, id, patch) => list.map((x) => (x.id === id ? { ...x, ...patch } : x));
 
 export const store = {
@@ -95,6 +153,7 @@ export const actions = {
   },
   // Za svaki predložak napravi današnji zadatak (ako ga još nema); neodrađene stare kopije miče.
   generateDaily() {
+    if (!status.ready) return;
     const t = today();
     const dow = new Date(`${t}T12:00:00`).getDay();
     const workday = dow >= 1 && dow <= 5;
@@ -104,7 +163,7 @@ export const actions = {
       if (r.repeat === 'workdays' && !workday) continue;
       if (todos.some((x) => x.recurringId === r.id && x.dueDate === t)) continue;
       todos.push({
-        id: uid(), title: r.title, description: '', assignee: r.assignee, dueDate: t, priority: 'normal',
+        id: `${r.id}:${t}`, title: r.title, description: '', assignee: r.assignee, dueDate: t, priority: 'normal',
         firm: r.firm, recurringId: r.id, done: false, doneBy: null, doneAt: null,
         sortOrder: todos.length, createdBy: 'auto', createdAt: now(),
       });
@@ -159,12 +218,12 @@ export const actions = {
   updateTemplate(id, patch) { commit({ ...state, templates: patchList(state.templates, id, patch) }); },
 
   // ---- Demo ----
-  resetDemo() { commit(buildInitialState()); },
+  resetDemo() { if (!remoteEnabled) commit(buildInitialState()); },
 };
 
 // Svaki dan stvori današnje zadatke: pri pokretanju, pri povratku na karticu i svake minute.
 if (typeof window !== 'undefined') {
-  actions.generateDaily();
+  if (!remoteEnabled) actions.generateDaily();
   window.addEventListener('focus', () => actions.generateDaily());
   document.addEventListener('visibilitychange', () => { if (!document.hidden) actions.generateDaily(); });
   setInterval(() => actions.generateDaily(), 60000);

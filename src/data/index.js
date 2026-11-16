@@ -1,7 +1,7 @@
 // Jedino mjesto odakle ostatak aplikacije dobiva podatke.
-// Faza B: promijeni import u './supabaseStore'.
 import { useSyncExternalStore } from 'react';
-import { store, actions } from './localStore';
+import { store, actions, sync, initRemote, stopRemote } from './store';
 
-export { actions };
+export { actions, initRemote, stopRemote };
 export const useData = () => useSyncExternalStore(store.subscribe, store.getState);
+export const useSync = () => useSyncExternalStore(sync.subscribe, sync.getState);

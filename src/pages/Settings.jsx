@@ -4,6 +4,7 @@ import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
 import FirmBadge, { FirmPicker } from '../components/FirmBadge';
 import { TEAM } from '../seed';
+import { remoteEnabled } from '../lib/supabase';
 import { TEMPLATE_KINDS, LANGUAGES } from '../seed/templates';
 
 function AddRow({ placeholder, onAdd }) {
@@ -121,11 +122,13 @@ export default function Settings() {
         <Recurring />
         <Templates />
         <Properties />
+        {!remoteEnabled && (
         <section className="card p-5">
           <h2 className="mb-1 text-xl font-semibold">Testni podaci</h2>
           <p className="mb-3 text-sm text-soft">Ovo je probna verzija: podaci se spremaju samo u ovom pregledniku. Gumb vraća početne testne podatke.</p>
           <button className="btn-outline text-wine" onClick={() => confirm('Vratiti sve na testne podatke?') && actions.resetDemo()}>Vrati testne podatke</button>
         </section>
+        )}
       </div>
     </>
   );

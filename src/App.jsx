@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { MeProvider } from './lib/me';
 import { FirmProvider } from './lib/firm';
+import { AuthGate } from './lib/auth';
 import Layout from './components/Layout';
 import Today from './pages/Today';
 import Stays from './pages/Stays';
@@ -11,6 +12,7 @@ import Settings from './pages/Settings';
 
 export default function App() {
   return (
+    <AuthGate>
     <MeProvider>
       <FirmProvider>
       <Routes>
@@ -26,5 +28,6 @@ export default function App() {
       </Routes>
       </FirmProvider>
     </MeProvider>
+    </AuthGate>
   );
 }
