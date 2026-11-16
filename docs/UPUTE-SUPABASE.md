@@ -4,7 +4,7 @@ Bez ovoga CRM sprema podatke samo u pregledniku. S ovim su podaci na serveru, is
 
 ## 1. Baza (SQL)
 1. Supabase → projekt **CRM** → lijevo **SQL Editor** → **New query**.
-2. Zalijepi cijeli sadržaj datoteke `supabase/schema.sql` i klikni **Run**. Mora pisati "Success".
+2. Zalijepi cijeli sadržaj datoteke `supabase/schema.sql` i klikni **Run**. Mora pisati "Success". (Na kraju datoteke su i dozvole za prijavljene korisnike; bez njih prijava javlja "Nemaš pristup".)
 
 ## 2. Tko smije ući
 **Varijanta A: jedan zajednički račun (jednostavno).** Svi ulaze istim emailom i lozinkom, a unutar aplikacije biraju tko su (Marko / Lea / Vanja) izbornikom dolje lijevo. Svaki uređaj pamti izbor.
