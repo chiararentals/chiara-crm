@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarDays, CalendarCheck, ListChecks, Archive, Settings, BedDouble } from 'lucide-react';
+import { CalendarDays, CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { TEAM } from '../seed';
 
@@ -8,6 +8,7 @@ const NAV = [
   { to: '/boravci', label: 'Boravci', icon: BedDouble },
   { to: '/kalendar', label: 'Kalendar', icon: CalendarDays },
   { to: '/zadaci', label: 'Zadaci', icon: ListChecks },
+  { to: '/kupci', label: 'Kupci', icon: Users },
   { to: '/arhiva', label: 'Arhiva', icon: Archive },
   { to: '/postavke', label: 'Postavke', icon: Settings },
 ];
@@ -51,7 +52,7 @@ export default function Layout() {
       </div>
 
       {/* Donja navigacija – mobitel */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-mute/20 bg-white lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-mute/20 bg-white lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end}
             className={({ isActive }) => `flex flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${isActive ? 'text-wine' : 'text-mute'}`}>

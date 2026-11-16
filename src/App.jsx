@@ -6,6 +6,7 @@ import Stays from './pages/Stays';
 import Calendar from './pages/Calendar';
 import Archive from './pages/Archive';
 import Todos from './pages/Todos';
+import Leads from './pages/Leads';
 import Settings from './pages/Settings';
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
           <Route index element={<Today />} />
           <Route path="boravci" element={<Stays />} />
           <Route path="kalendar" element={<Calendar />} />
+          <Route path="kupci" element={<Leads />} />
           <Route path="arhiva" element={<Archive />} />
           <Route path="zadaci" element={<Todos />} />
           <Route path="postavke" element={<Settings />} />

@@ -2,8 +2,9 @@
 // U fazi B ovu datoteku zamjenjuje supabaseStore.js s ISTIM funkcijama,
 // pa se ostatak aplikacije ne mijenja.
 import { buildInitialState, STANDARD_TASKS } from '../seed';
+import { today } from '../lib/dates';
 
-const KEY = 'chiara-crm-v1';
+const KEY = 'chiara-crm-v2';
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 
@@ -16,6 +17,7 @@ function load() {
 }
 
 let state = load();
+
 const listeners = new Set();
 
 function commit(next) {
@@ -81,19 +83,55 @@ export const actions = {
   },
   deleteTodo(id) { commit({ ...state, todos: state.todos.filter((t) => t.id !== id) }); },
 
-  // ---- Kategorije ----
-  addCategory(name) {
-    const palette = ['#68051A', '#F8B42B', '#4F5962', '#0F766E', '#7C3AED', '#0369A1'];
-    const id = uid();
-    commit({ ...state, categories: [...state.categories, { id, name, color: palette[state.categories.length % palette.length] }] });
-    return id;
-  },
-  deleteCategory(id) {
+  // ---- Svakodnevni zadaci (predlošci) ----
+  addRecurring(data) { commit({ ...state, recurring: [...state.recurring, { repeat: 'daily', ...data, id: uid() }] }); actions.generateDaily(); },
+  updateRecurring(id, patch) { commit({ ...state, recurring: patchList(state.recurring, id, patch) }); },
+  deleteRecurring(id) {
     commit({
       ...state,
-      categories: state.categories.filter((c) => c.id !== id),
-      todos: state.todos.map((t) => (t.categoryId === id ? { ...t, categoryId: null } : t)),
+      recurring: state.recurring.filter((r) => r.id !== id),
+      todos: state.todos.filter((t) => !(t.recurringId === id && !t.done)),
     });
+  },
+  // Za svaki predložak napravi današnji zadatak (ako ga još nema); neodrađene stare kopije miče.
+  generateDaily() {
+    const t = today();
+    const dow = new Date(`${t}T12:00:00`).getDay();
+    const workday = dow >= 1 && dow <= 5;
+    const todos = state.todos.filter((x) => !(x.recurringId && !x.done && x.dueDate < t));
+    let changed = todos.length !== state.todos.length;
+    for (const r of state.recurring) {
+      if (r.repeat === 'workdays' && !workday) continue;
+      if (todos.some((x) => x.recurringId === r.id && x.dueDate === t)) continue;
+      todos.push({
+        id: uid(), title: r.title, description: '', assignee: r.assignee, dueDate: t, priority: 'normal',
+        firm: r.firm, recurringId: r.id, done: false, doneBy: null, doneAt: null,
+        sortOrder: todos.length, createdBy: 'auto', createdAt: now(),
+      });
+      changed = true;
+    }
+    if (changed) commit({ ...state, todos });
+  },
+
+  // ---- Kupci i leadovi ----
+  addLead(data) {
+    const id = uid();
+    commit({ ...state, leads: [...state.leads, { status: 'otvoren', notes: '', ...data, id, createdAt: now() }] });
+    return id;
+  },
+  updateLead(id, patch) { commit({ ...state, leads: patchList(state.leads, id, patch) }); },
+  deleteLead(id) { commit({ ...state, leads: state.leads.filter((l) => l.id !== id) }); },
+  // Uvoz: isti email = ažuriranje postojećeg, inače novi redak
+  importLeads(list) {
+    let added = 0, updated = 0;
+    const leads = [...state.leads];
+    for (const item of list) {
+      const i = item.email ? leads.findIndex((l) => l.email && l.email.toLowerCase() === item.email.toLowerCase() && l.firm === item.firm) : -1;
+      if (i >= 0) { leads[i] = { ...leads[i], ...item, id: leads[i].id }; updated++; }
+      else { leads.push({ status: 'otvoren', notes: '', ...item, id: uid(), createdAt: now() }); added++; }
+    }
+    commit({ ...state, leads });
+    return { added, updated };
   },
 
   // ---- Objekti i jedinice ----
@@ -123,3 +161,11 @@ export const actions = {
   // ---- Demo ----
   resetDemo() { commit(buildInitialState()); },
 };
+
+// Svaki dan stvori današnje zadatke: pri pokretanju, pri povratku na karticu i svake minute.
+if (typeof window !== 'undefined') {
+  actions.generateDaily();
+  window.addEventListener('focus', () => actions.generateDaily());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) actions.generateDaily(); });
+  setInterval(() => actions.generateDaily(), 60000);
+}

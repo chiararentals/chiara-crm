@@ -1,7 +1,25 @@
 import { today, plusDays } from '../lib/dates';
 import { TEMPLATES_SEED } from './templates';
 
-export const TEAM = ['Marko', 'Ana', 'Lea'];
+export const TEAM = ['Marko', 'Lea', 'Vanja'];
+
+// Firme i njihove boje (iz logotipa). `text` = boja slova na toj pozadini.
+export const FIRMS = {
+  chiara: { name: 'Chiara', color: '#7A1623', text: '#FFFFFF' },
+  bonvia: { name: 'Bonvia', color: '#C9B48A', text: '#011329' },
+  dux: { name: 'Dux', color: '#1E9E92', text: '#FFFFFF' },
+};
+export const FIRM_KEYS = Object.keys(FIRMS);
+
+// Zadaci koji se sami pojave svaki dan (mogu se mijenjati u Postavkama).
+// repeat: 'daily' = svaki dan, 'workdays' = pon–pet
+export const RECURRING_SEED = [
+  ['Check-in / check-out gostiju', 'chiara', 'Lea'],
+  ['Pregled maila (Chiara)', 'chiara', 'Lea'],
+  ['Pregled Bookinga i Airbnba', 'chiara', 'Lea'],
+  ['Follow-up kupaca preko maila', 'dux', 'Vanja'],
+  ['Follow-up kupaca preko WhatsAppa', 'dux', 'Vanja'],
+].map(([title, firm, assignee], i) => ({ id: `r${i + 1}`, title, firm, assignee, repeat: 'daily' }));
 
 // Objekt -> jedinice. `null` = objekt ima samo jednu jedinicu (isto ime kao objekt).
 const PROPERTIES = [
@@ -41,13 +59,6 @@ export function buildInitialState() {
     });
   });
   const unit = (name) => units.find((u) => u.name === name).id;
-
-  const categories = [
-    { id: 'c1', name: 'Mailovi', color: '#68051A' },
-    { id: 'c2', name: 'Oglasi', color: '#F8B42B' },
-    { id: 'c3', name: 'Društvene mreže', color: '#4F5962' },
-    { id: 'c4', name: 'Ostalo', color: '#949CA5' },
-  ];
 
   const t = today();
   const d = (n) => plusDays(t, n);
@@ -90,22 +101,32 @@ export function buildInitialState() {
   stayTasks.push({ id: 's2t9', stayId: 's2', kind: 'custom', title: 'Dječji krevetić', sortOrder: 9, done: false, doneBy: null, doneAt: null });
 
   const todos = [
-    ['Odgovoriti na upit za ljeto (mail)', 'Upit za Villa Tramontana, 2 tjedna u srpnju.', 'Ana', d(0), 'high', 'c1'],
-    ['Nove fotografije za Booking.com', '', 'Marko', d(3), 'normal', 'c2'],
-    ['Objava na Instagramu – terasa Lara', 'Fotke su u zajedničkom albumu.', 'Lea', d(2), 'normal', 'c3'],
-    ['Nazvati čistačicu za vikend', '', 'Marko', d(-2), 'high', 'c4'],
-    ['Osvježiti opis oglasa – Vila Sokol', '', 'Lea', d(7), 'low', 'c2'],
-    ['Poslati račune knjigovođi', '', 'Ana', d(5), 'normal', 'c1'],
-    ['Objaviti ponudu za jesen', '', 'Ana', d(-5), 'normal', 'c3'],
-  ].map(([title, description, assignee, dueDate, priority, categoryId], i) => ({
-    id: `td${i + 1}`, title, description, assignee, dueDate, priority, categoryId,
+    ['Dodati nove oglase na web', '', 'Marko', d(3), 'normal', 'bonvia'],
+    ['Objava na Instagramu i TikToku', 'Fotke su u zajedničkom albumu.', 'Vanja', d(2), 'normal', 'bonvia'],
+    ['Ažurirati cijene apartmana na webu', 'Za sezonu 2027.', 'Lea', d(5), 'normal', 'chiara'],
+    ['Objava na društvenim mrežama (TikTok + Insta)', '', 'Lea', d(1), 'normal', 'chiara'],
+    ['Dignuti oglase (Dux)', 'Podići starije oglase na vrh.', 'Vanja', d(0), 'high', 'dux'],
+    ['Kontaktirati nove leadove (Bonvia)', '', 'Marko', d(-1), 'high', 'bonvia'],
+  ].map(([title, description, assignee, dueDate, priority, firm], i) => ({
+    id: `td${i + 1}`, title, description, assignee, dueDate, priority, firm,
     done: false, doneBy: null, doneAt: null, sortOrder: i, createdBy: 'Marko', createdAt: new Date().toISOString(),
   }));
   todos.push({
-    id: 'td8', title: 'Zamijeniti ključeve – Mascagni 1', description: '', assignee: 'Lea', dueDate: d(-1),
-    priority: 'normal', categoryId: 'c4', done: true, doneBy: 'Lea', doneAt: new Date(Date.now() - 86400e3).toISOString(),
-    sortOrder: 8, createdBy: 'Ana', createdAt: new Date().toISOString(),
+    id: 'td9', title: 'Poslati potvrdu rezervacije (primjer odrađenog)', description: 'Poslano mailom.', assignee: 'Lea', dueDate: d(-1),
+    priority: 'normal', firm: 'chiara', done: true, doneBy: 'Lea', doneAt: new Date(Date.now() - 86400e3).toISOString(),
+    sortOrder: 9, createdBy: 'Marko', createdAt: new Date().toISOString(),
   });
 
-  return { properties, units, stays, stayTasks, todos, categories, templates: TEMPLATES_SEED };
+  // Izmišljeni primjeri kupaca (stvarni se uvoze iz Excela u aplikaciji)
+  const leads = [
+    ['Primjer Kupac 1', 'dux', 'vruc', 'primjer1@example.com', '+385 91 000 0001', 'hr', 'Stan u Opatiji, do 400.000 €', 'Poslati nove ponude', d(0)],
+    ['Primjer Kupac 2', 'dux', 'topao', 'primjer2@example.com', '+49 170 0000002', 'de', 'Kuća s vrtom, Lovran', 'Nazvati nakon razgleda', d(3)],
+    ['Primjer Lead 3', 'bonvia', 'vruc', 'primjer3@example.com', '+44 7700 000003', 'en', 'Zainteresiran za suradnju', 'Poslati ponudu', d(-1)],
+  ].map(([name, firm, temperature, email, phone, language, wants, nextStep, followUpDate], i) => ({
+    id: `l${i + 1}`, name, firm, temperature, email, phone, language, wants, nextStep, followUpDate,
+    lastContact: d(-3), status: 'otvoren', source: '', location: '', type: '', priceRange: '', notes: '',
+    createdAt: new Date().toISOString(),
+  }));
+
+  return { properties, units, stays, stayTasks, todos, recurring: RECURRING_SEED, leads, templates: TEMPLATES_SEED };
 }

@@ -9,10 +9,9 @@ const RANK = { high: 0, normal: 1, low: 2 };
 
 export const isOverdue = (t) => !t.done && t.dueDate && daysFromToday(t.dueDate) < 0;
 
-// neodrađeni prvo; po roku, pa po prioritetu
+// po roku, pa po prioritetu
 export function sortTodos(list) {
   return [...list].sort((a, b) =>
-    Number(a.done) - Number(b.done) ||
     (a.dueDate || '9999').localeCompare(b.dueDate || '9999') ||
     RANK[a.priority] - RANK[b.priority]);
 }
