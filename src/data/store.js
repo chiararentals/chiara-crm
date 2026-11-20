@@ -92,6 +92,22 @@ const sameLead = (a, b) => {
   if (digits(a.phone).length >= 8 && digits(b.phone).length >= 8) return digits(a.phone) === digits(b.phone);
   return !a.email && !b.email && a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
 };
+// Popis nekretnina nakon obrasca: pogledane se dodaju, a "izabrane za gledanje" zamjenjuju prijašnji popis izabranih
+function syncViewings(lead, form) {
+  let viewings = [...(lead.viewings || [])];
+  const have = (id, st) => viewings.some((v) => v.duxId === id && v.status === st);
+  for (const id of form.viewedIds) {
+    viewings = viewings.filter((v) => !(v.duxId === id && v.status === 'planned'));
+    if (!have(id, 'viewed')) viewings.push({ id: uid(), duxId: id, status: 'viewed', note: '', date: today() });
+  }
+  if (form.chosenIds) {
+    viewings = viewings.filter((v) => v.status !== 'planned' || form.chosenIds.includes(v.duxId));
+    for (const id of form.chosenIds) {
+      if (!have(id, 'planned') && !have(id, 'viewed')) viewings.push({ id: uid(), duxId: id, status: 'planned', note: '', date: null });
+    }
+  }
+  return viewings;
+}
 const patchList = (list, id, patch) => list.map((x) => (x.id === id ? { ...x, ...patch } : x));
 
 export const store = {
@@ -227,22 +243,24 @@ export const actions = {
     if (n) commit({ ...state, leads });
     return n;
   },
+  // Samo upiši podatke: ažurira 4 odgovora, ali NE bilježi kontakt i NE mijenja rok follow-upa.
+  // Prazno polje (null/undefined) = ne mijenjaj.
+  updateLeadFacts(leadId, form) {
+    const lead = state.leads.find((l) => l.id === leadId);
+    if (!lead) return;
+    const patch = { viewings: syncViewings(lead, { viewedIds: form.viewedIds || [], chosenIds: form.chosenIds }) };
+    if (form.sentText) patch.lastSent = form.sentText;
+    if (form.arrival === 'date') { patch.arrivalDate = form.arrivalDate; patch.arrivalNote = ''; }
+    if (form.arrival === 'unknown') { patch.arrivalDate = null; patch.arrivalNote = form.arrivalNote || ''; }
+    if (form.viewedManual !== '' && form.viewedManual != null) patch.viewedManual = Number(form.viewedManual) || 0;
+    commit({ ...state, leads: patchList(state.leads, leadId, patch) });
+  },
   // Zabilježi kontakt (i time odradi follow-up). form: sentText, channel, arrivalDate, arrivalNote,
   // viewedManual, viewedIds[], chosenIds[], nextDate
   logContact(leadId, form, by) {
     const lead = state.leads.find((l) => l.id === leadId);
     if (!lead) return;
-    let viewings = [...(lead.viewings || [])];
-    const have = (id, st) => viewings.some((v) => v.duxId === id && v.status === st);
-    for (const id of form.viewedIds) {
-      viewings = viewings.filter((v) => !(v.duxId === id && v.status === 'planned'));
-      if (!have(id, 'viewed')) viewings.push({ id: uid(), duxId: id, status: 'viewed', note: '', date: today() });
-    }
-    // izabrane za gledanje = popis iz obrasca (zamjenjuje prijašnji popis izabranih)
-    viewings = viewings.filter((v) => v.status !== 'planned' || form.chosenIds.includes(v.duxId));
-    for (const id of form.chosenIds) {
-      if (!have(id, 'planned') && !have(id, 'viewed')) viewings.push({ id: uid(), duxId: id, status: 'planned', note: '', date: null });
-    }
+    const viewings = syncViewings(lead, form);
     const viewedCount = (Number(form.viewedManual) || 0) + viewedIds({ viewings }).length;
     const contact = {
       id: uid(), at: now(), by, channel: form.channel, sentText: form.sentText,

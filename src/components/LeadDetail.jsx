@@ -53,6 +53,7 @@ export default function LeadDetail({ leadId, onClose }) {
         <div>
           <LeadFacts lead={lead} />
           <button className="btn-primary mt-3 w-full" onClick={() => setDialog('contact')}><Check size={16} /> Zabilježi kontakt / odradi follow-up</button>
+          <button className="btn-outline mt-2 w-full" onClick={() => setDialog('data')}>Samo upiši podatke (bez bilježenja kontakta)</button>
         </div>
 
         <section>
@@ -99,6 +100,7 @@ export default function LeadDetail({ leadId, onClose }) {
           </ul>
         </section>
       </div>
+      {dialog === 'data' && <ContactDialog dataOnly lead={lead} onClose={() => setDialog(null)} />}
       {dialog === 'contact' && <ContactDialog lead={lead} onClose={() => setDialog(null)} />}
       {dialog === 'edit' && <LeadForm lead={lead} onClose={() => setDialog(null)} />}
     </Modal>

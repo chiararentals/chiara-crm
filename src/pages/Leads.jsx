@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Upload, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye } from 'lucide-react';
+import { Plus, Upload, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye, ClipboardEdit } from 'lucide-react';
 import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
 import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
@@ -14,7 +14,7 @@ import { TEMPERATURES, followUpState, parseExcel, waLink, leadOwner, lateLeads }
 import { fmtShort, today, plusDays } from '../lib/dates';
 import { TEAM } from '../seed';
 
-function LeadCard({ lead, onEdit, onDetail, onContact }) {
+function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
   const [open, setOpen] = useState(false);
   const state = followUpState(lead);
   const wa = waLink(lead.phone);
@@ -53,6 +53,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact }) {
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-mist pt-3">
         <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => onContact(lead)}><Check size={14} /> Follow-up odrađen</button>
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onDetail(lead.id)}><Eye size={14} /> Detalji i povijest</button>
+        <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onData(lead)}><ClipboardEdit size={14} /> Samo upiši podatke</button>
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={onEdit}><Pencil size={14} /> Uredi</button>
       </div>
     </div>
@@ -97,6 +98,7 @@ export default function Leads() {
   const [msg, setMsg] = useState('');
   const [detail, setDetail] = useState(null);
   const [contact, setContact] = useState(null);
+  const [dataFor, setDataFor] = useState(null);
   const [showCal, setShowCal] = useState(false);
   const [owner, setOwner] = useState('');
   const fileRef = useRef(null);
@@ -193,7 +195,7 @@ export default function Leads() {
           <section key={st} className="mb-7">
             <h2 className="mb-3 text-xl font-semibold">{title} <span className="badge bg-ink text-white">{list.length}</span></h2>
             <div className="grid gap-3 md:grid-cols-2">
-              {list.slice(0, limits[st] || PAGE).map((l) => <LeadCard key={l.id} lead={l} onEdit={() => setForm(l)} onDetail={setDetail} onContact={setContact} />)}
+              {list.slice(0, limits[st] || PAGE).map((l) => <LeadCard key={l.id} lead={l} onEdit={() => setForm(l)} onDetail={setDetail} onContact={setContact} onData={setDataFor} />)}
             </div>
             {list.length > (limits[st] || PAGE) && (
               <button className="btn-outline mt-3" onClick={() => setLimits({ ...limits, [st]: (limits[st] || PAGE) + 40 })}>
@@ -206,6 +208,7 @@ export default function Leads() {
 
       {detail && <LeadDetail leadId={detail} onClose={() => setDetail(null)} />}
       {contact && <ContactDialog lead={contact} onClose={() => setContact(null)} />}
+      {dataFor && <ContactDialog dataOnly lead={dataFor} onClose={() => setDataFor(null)} />}
       {form && <LeadForm lead={form.id ? form : undefined} onClose={() => setForm(null)} />}
     </>
   );

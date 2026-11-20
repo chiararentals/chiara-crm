@@ -5,7 +5,7 @@ import { useMe } from '../lib/me';
 import { CHANNELS, parseIds, plannedIds, suggestDate, TEMPERATURES } from '../lib/leads';
 
 // Odrađen follow-up / kontakt: 4 obavezna odgovora + datum sljedećeg follow-upa.
-export default function ContactDialog({ lead, onClose }) {
+export default function ContactDialog({ lead, onClose, dataOnly }) {
   const [me] = useMe();
   const known = lead.contacts?.length > 0;
   const [f, setF] = useState({
@@ -19,14 +19,25 @@ export default function ContactDialog({ lead, onClose }) {
   const chosenIds = f.chosen === 'ids' ? parseIds(f.chosenText) : [];
 
   const missing = [];
-  if (!f.sentText.trim()) missing.push('što je poslano');
-  if (!(f.arrival === 'unknown' || (f.arrival === 'date' && f.arrivalDate))) missing.push('kad dolazi');
-  if (f.viewedManual === '' || Number(f.viewedManual) < 0) missing.push('koliko je pogledao');
-  if (!(f.chosen === 'none' || chosenIds.length)) missing.push('izabrana nekretnina');
+  if (!dataOnly && !f.sentText.trim()) missing.push('što je poslano');
+  if (!dataOnly) {
+    if (!(f.arrival === 'unknown' || (f.arrival === 'date' && f.arrivalDate))) missing.push('kad dolazi');
+    if (f.viewedManual === '' || Number(f.viewedManual) < 0) missing.push('koliko je pogledao');
+    if (!(f.chosen === 'none' || chosenIds.length)) missing.push('izabrana nekretnina');
+  }
 
   const save = (e) => {
     e.preventDefault();
     if (missing.length) return;
+    if (dataOnly) {
+      actions.updateLeadFacts(lead.id, {
+        sentText: f.sentText.trim(), arrival: f.arrival, arrivalDate: f.arrivalDate, arrivalNote: f.arrivalNote.trim(),
+        viewedManual: f.viewedManual, viewedIds: parseIds(f.viewedText),
+        chosenIds: f.chosen === 'ids' ? chosenIds : f.chosen === 'none' ? [] : undefined,
+      });
+      onClose();
+      return;
+    }
     actions.logContact(lead.id, {
       sentText: f.sentText.trim(), channel: f.channel,
       arrivalDate: f.arrival === 'date' ? f.arrivalDate : null, arrivalNote: f.arrival === 'unknown' ? f.arrivalNote.trim() : '',
@@ -43,16 +54,16 @@ export default function ContactDialog({ lead, onClose }) {
   );
 
   return (
-    <Modal title={`Follow-up: ${lead.name}`} onClose={onClose}>
+    <Modal title={`${dataOnly ? 'Podaci' : 'Follow-up'}: ${lead.name}`} onClose={onClose}>
       <form onSubmit={save} className="space-y-4">
-        <p className="text-sm text-soft">Odgovori na 4 pitanja su obavezni. <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span></p>
+        <p className="text-sm text-soft">{dataOnly ? 'Upiši što znaš. Ovo NE bilježi kontakt i ne mijenja rok follow-upa.' : 'Odgovori na 4 pitanja su obavezni.'} <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span></p>
 
         <div>
-          <label className="label">1. Što mu je poslano / što ste dogovorili</label>
+          <label className="label">1. Što mu je poslano / što ste dogovorili{dataOnly ? ' (neobavezno)' : ''}</label>
           <textarea className="field min-h-[80px]" value={f.sentText} onChange={set('sentText')} autoFocus placeholder="npr. poslane 3 nove ponude za stanove u Opatiji" />
-          <select className="field mt-2" value={f.channel} onChange={set('channel')} aria-label="Kanal">
+          {!dataOnly && <select className="field mt-2" value={f.channel} onChange={set('channel')} aria-label="Kanal">
             {Object.entries(CHANNELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          </select>}
         </div>
 
         <div>
@@ -75,17 +86,17 @@ export default function ContactDialog({ lead, onClose }) {
           {f.chosen === 'ids' && <input className="field mt-2" placeholder="ID-ovi iz DUX baze (odvoji zarezom)" value={f.chosenText} onChange={set('chosenText')} />}
         </div>
 
-        <div className="rounded-xl bg-mist p-3">
+        {!dataOnly && <div className="rounded-xl bg-mist p-3">
           <label className="label">Sljedeći follow-up</label>
           <input type="date" className="field" value={f.nextDate} disabled={f.noNext} onChange={set('nextDate')} />
           <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-[#68051A]" checked={f.noNext} onChange={(e) => setF({ ...f, noNext: e.target.checked })} /> Bez sljedećeg follow-upa</label>
           <p className="mt-1 text-xs text-mute">Prijedlog: vruć +4 dana, topao +7 dana. Slobodno promijeni.</p>
-        </div>
+        </div>}
 
         {missing.length > 0 && <p className="text-xs text-soft">Još nedostaje: {missing.join(', ')}.</p>}
         <div className="flex gap-2">
           <button type="button" onClick={onClose} className="btn-ghost ml-auto">Odustani</button>
-          <button className="btn-primary" disabled={missing.length > 0}>Spremi i odradi</button>
+          <button className="btn-primary" disabled={missing.length > 0}>{dataOnly ? 'Spremi podatke' : 'Spremi i odradi'}</button>
         </div>
       </form>
     </Modal>
