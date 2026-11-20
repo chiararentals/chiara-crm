@@ -11,6 +11,9 @@ import { applySent } from './_lib/mail/sent.js';
 
 export const config = { maxDuration: 60 };
 
+// Adresa projekta smije imati višak na kraju (npr. /rest/v1/): uzima se samo https://nešto.supabase.co
+const supabaseOrigin = (u) => { try { return new URL(String(u).trim()).origin; } catch { return String(u).trim(); } };
+
 const need = ['MAIL_HOST', 'MAIL_USER', 'MAIL_PASS', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'CRON_SECRET'];
 
 export default async function handler(req, res) {
@@ -25,7 +28,7 @@ export default async function handler(req, res) {
   const stats = { fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
   const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
-  const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
+  const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
   const { data: rows, error } = await db.from('leads').select('data');
   if (error) return res.status(500).json({ error: `Baza: ${error.message}` });
   const leads = rows.map((r) => r.data);
