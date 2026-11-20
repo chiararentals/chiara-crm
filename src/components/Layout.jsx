@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, ChevronsUpDown } from 'lucide-react';
+import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, ChevronsUpDown } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { useFirm } from '../lib/firm';
 import { useAuth } from '../lib/auth';
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/zadaci', label: 'Zadaci', icon: ListChecks },
   { to: '/kupci', label: 'Kupci', icon: Users, firms: ['', 'dux', 'bonvia'] },
   { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'] },
+  { to: '/pregled', label: 'Pregled', icon: BarChart3 },
   { to: '/arhiva', label: 'Arhiva', icon: Archive },
   { to: '/postavke', label: 'Postavke', icon: Settings },
 ];

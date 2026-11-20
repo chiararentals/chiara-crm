@@ -5,6 +5,13 @@ export const TEMPERATURES = {
   topao: { label: 'Topao', badge: 'bg-orange-400 text-navy' },
 };
 
+// Prijedlog roka za sljedeći follow-up (dana): vruć 4, topao 7 (kao u tablici). U obrascu se može promijeniti.
+export const DEFAULT_DAYS = { vruc: 4, topao: 7 };
+export const suggestDate = (temperature) => plusDays(today(), DEFAULT_DAYS[temperature] ?? 7);
+export const isClosed = (l) => /^zatvoren/i.test(l.status || '');
+// Tko vodi kupca (u Zadacima se follow-up pojavi u stupcu te osobe). Zadano: Vanja.
+export const leadOwner = (l) => l.owner || 'Vanja';
+
 const norm = (v) => String(v ?? '').trim();
 const key = (v) => norm(v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
 
@@ -23,6 +30,8 @@ const COLS = {
   'Zadnja komunikacija': 'lastComm', Status: 'status', 'Sljedeći korak': 'nextStep', 'Follow-up do': 'followUpDate',
 };
 
+const futureOrNull = (d) => (d && d >= today() ? d : null);
+
 // Redovi tablice (prvi red = zaglavlje) -> popis kupaca. Uvozi samo vruće i tople.
 export function rowsToLeads(rows, firm) {
   const [head, ...body] = rows;
@@ -40,7 +49,8 @@ export function rowsToLeads(rows, firm) {
       source: g('source'), listingId: g('listingId').replace(/\.0$/, ''), location: g('location'), type: g('type'),
       priceRange: g('priceRange'), wants: g('wants'), obstacle: g('obstacle'), lastComm: g('lastComm'),
       nextStep: g('nextStep'), status: g('status') || 'otvoren',
-      lastContact: toIso(r[idx.lastContact]), followUpDate: toIso(r[idx.followUpDate]),
+      // Datum iz tablice vrijedi samo ako nije prošao – stari datumi nisu ažurirani i ne smiju sve učiniti "kasnim"
+      lastContact: toIso(r[idx.lastContact]), followUpDate: futureOrNull(toIso(r[idx.followUpDate])),
     });
   }
   return out;
@@ -55,6 +65,7 @@ export async function parseExcel(file, firm) {
 
 // kasni / danas / uskoro / bez datuma
 export function followUpState(lead) {
+  if (isClosed(lead)) return 'closed';
   if (!lead.followUpDate) return 'none';
   const d = daysFromToday(lead.followUpDate);
   return d < 0 ? 'late' : d === 0 ? 'today' : 'soon';
@@ -65,3 +76,25 @@ export const waLink = (phone) => {
   const digits = norm(phone).replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, '');
   return digits ? `https://wa.me/${digits}` : null;
 };
+
+// ---- Kontakti, nekretnine i 4 ključna odgovora ----
+export const CHANNELS = { whatsapp: 'WhatsApp', email: 'Email', poziv: 'Poziv', ostalo: 'Ostalo' };
+
+export const viewedIds = (l) => (l.viewings || []).filter((v) => v.status === 'viewed').map((v) => v.duxId);
+export const plannedIds = (l) => (l.viewings || []).filter((v) => v.status === 'planned').map((v) => v.duxId);
+// ručno upisani broj + pogledane s popisa
+export const viewedTotal = (l) => (Number(l.viewedManual) || 0) + viewedIds(l).length;
+export const parseIds = (text) => [...new Set(String(text || '').split(/[\s,;]+/).filter(Boolean))];
+
+// Danas / kasni se računa samo za otvorene kupce
+export const lateLeads = (leads) => leads.filter((l) => !isClosed(l) && followUpState(l) === 'late');
+
+// Datum (YYYY-MM-DD) kad je kontakt zabilježen, po lokalnom vremenu
+export const contactDay = (c) => {
+  const d = new Date(c.at);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+};
+export const allContacts = (leads) =>
+  leads.flatMap((l) => (l.contacts || []).map((c) => ({ ...c, lead: l })));

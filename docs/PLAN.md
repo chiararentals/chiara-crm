@@ -172,3 +172,7 @@ Kašnjenje se računa tek **od `tracked_since`**, ne od starih datuma. Kad uveze
 - **B:** Supabase za sve (`schema.sql` uključuje i kupce), prijava za Marka, Leu i Vanju
 - **C:** uvoz postojećih kupaca iz Excela
 - **D (kasnije):** obavijesti (mobitel/email), PWA ikona, Rentlio
+
+---
+## Napomena (20.11.2026): stanje nakon spajanja s granom `tender-volta`
+Supabase, firme (Chiara/Bonvia/Dux) i stranica Kupci već postoje. Dopuna iz odjeljka 10 izvedena je **na postojećem modulu** (kupci su `leads`), a ne kao nova tablica: kontakti (`contacts`) i nekretnine (`viewings`) su polja unutar zapisa kupca, pa **nije potreban novi SQL**. Voditelj kupca je `owner` (zadano Vanja). Prijava: jedan zajednički račun, osoba se bira u aplikaciji.

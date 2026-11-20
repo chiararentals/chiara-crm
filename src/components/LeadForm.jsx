@@ -4,13 +4,14 @@ import { FirmPicker } from './FirmBadge';
 import { actions } from '../data';
 import { useFirm } from '../lib/firm';
 import { TEMPERATURES } from '../lib/leads';
+import { TEAM } from '../seed';
 
 export default function LeadForm({ lead, defaults = {}, onClose }) {
   const [gFirm] = useFirm();
   const editing = !!lead;
   const [f, setF] = useState({
     name: '', firm: gFirm && gFirm !== 'chiara' ? gFirm : 'dux', temperature: 'topao', email: '', phone: '', language: '', source: '',
-    wants: '', nextStep: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
+    wants: '', nextStep: '', owner: 'Vanja', listingId: '', obstacle: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
     ...defaults, ...lead,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -37,12 +38,18 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
             </select>
           </div>
           <div><label className="label">Follow-up do</label><input type="date" className="field" value={f.followUpDate || ''} onChange={set('followUpDate')} /></div>
+          <div>
+            <label className="label">Voditelj</label>
+            <select className="field" value={f.owner || 'Vanja'} onChange={set('owner')}>{TEAM.map((n) => <option key={n}>{n}</option>)}</select>
+          </div>
+          <div><label className="label">ID oglasa (upit)</label><input className="field" value={f.listingId || ''} onChange={set('listingId')} /></div>
           <div><label className="label">Email</label><input type="email" className="field" value={f.email} onChange={set('email')} /></div>
           <div><label className="label">Telefon</label><input className="field" value={f.phone} onChange={set('phone')} /></div>
           <div><label className="label">Jezik</label><input className="field" placeholder="hr / en / de" value={f.language} onChange={set('language')} /></div>
           <div><label className="label">Izvor</label><input className="field" placeholder="web, Njuškalo…" value={f.source} onChange={set('source')} /></div>
         </div>
         <div><label className="label">Što traži</label><textarea className="field min-h-[60px]" value={f.wants} onChange={set('wants')} /></div>
+        <div><label className="label">Prepreka</label><input className="field" value={f.obstacle || ''} onChange={set('obstacle')} /></div>
         <div><label className="label">Sljedeći korak</label><input className="field" value={f.nextStep} onChange={set('nextStep')} /></div>
         <div><label className="label">Napomena</label><textarea className="field min-h-[60px]" value={f.notes} onChange={set('notes')} /></div>
         <div className="flex gap-2 pt-1">

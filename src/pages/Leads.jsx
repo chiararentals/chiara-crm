@@ -1,22 +1,23 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Upload, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown } from 'lucide-react';
+import { Plus, Upload, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye } from 'lucide-react';
 import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
 import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
 import { useFirm } from '../lib/firm';
 import LeadForm from '../components/LeadForm';
-import { TEMPERATURES, followUpState, nextDate, parseExcel, waLink } from '../lib/leads';
+import LeadFacts from '../components/LeadFacts';
+import LeadDetail from '../components/LeadDetail';
+import ContactDialog from '../components/ContactDialog';
+import ContactsCalendar from '../components/ContactsCalendar';
+import { exportLeads } from '../lib/exportLeads';
+import { TEMPERATURES, followUpState, parseExcel, waLink, leadOwner, lateLeads } from '../lib/leads';
 import { fmtShort, today, plusDays } from '../lib/dates';
+import { TEAM } from '../seed';
 
-function LeadCard({ lead, onEdit }) {
+function LeadCard({ lead, onEdit, onDetail, onContact }) {
   const [open, setOpen] = useState(false);
-  const [picking, setPicking] = useState(false);
   const state = followUpState(lead);
   const wa = waLink(lead.phone);
-  const done = (days) => {
-    actions.updateLead(lead.id, { lastContact: today(), followUpDate: nextDate(days) });
-    setPicking(false);
-  };
   const dateBadge = lead.followUpDate
     ? `${state === 'late' ? 'Kasni · ' : ''}${fmtShort(lead.followUpDate)}`
     : 'Bez datuma';
@@ -28,12 +29,14 @@ function LeadCard({ lead, onEdit }) {
             <span className="text-sm font-semibold">{lead.name}</span>
             <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span>
             <span className={`badge ${state === 'late' ? 'bg-red-100 text-red-700' : state === 'today' ? 'bg-gold/50 text-navy' : 'bg-black/5 text-soft'}`}>{dateBadge}</span>
+            <span className="text-[11px] text-mute">{leadOwner(lead)}</span>
           </div>
           {lead.wants && <div className="mt-1 line-clamp-2 text-xs text-soft">{lead.wants}</div>}
           {lead.nextStep && <div className="mt-1 text-xs font-semibold text-navy">→ {lead.nextStep}</div>}
         </div>
         <ChevronDown size={18} className={`mt-1 flex-none text-mute transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
+      <LeadFacts lead={lead} />
 
       {open && (
         <div className="mt-3 space-y-2 border-t border-mist pt-3 text-xs text-soft">
@@ -45,20 +48,13 @@ function LeadCard({ lead, onEdit }) {
           {[['Lokacija', lead.location], ['Tip', lead.type], ['Cijena', lead.priceRange], ['Izvor', lead.source], ['ID oglasa', lead.listingId],
             ['Jezik', lead.language], ['Prepreka', lead.obstacle], ['Zadnja komunikacija', lead.lastComm], ['Zadnji kontakt', lead.lastContact], ['Napomena', lead.notes]]
             .filter(([, v]) => v).map(([k, v]) => <div key={k}><b className="text-navy">{k}:</b> {v}</div>)}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            {!picking
-              ? <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => setPicking(true)}><Check size={14} /> Follow-up odrađen</button>
-              : <>
-                  <span className="font-semibold text-navy">Sljedeći follow-up za:</span>
-                  {[[1, 'sutra'], [3, '3 dana'], [7, 'tjedan'], [14, '2 tjedna']].map(([d, l]) => (
-                    <button key={d} className="btn-ghost !px-3 !py-1.5 text-xs" onClick={() => done(d)}>{l}</button>
-                  ))}
-                  <button className="text-mute underline" onClick={() => setPicking(false)}>odustani</button>
-                </>}
-            <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={onEdit}><Pencil size={14} /> Uredi</button>
-          </div>
         </div>
       )}
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-mist pt-3">
+        <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => onContact(lead)}><Check size={14} /> Follow-up odrađen</button>
+        <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onDetail(lead.id)}><Eye size={14} /> Detalji i povijest</button>
+        <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={onEdit}><Pencil size={14} /> Uredi</button>
+      </div>
     </div>
   );
 }
@@ -84,7 +80,7 @@ function inRange(l, range, from, to) {
 const PAGE = 20;
 
 const SECTIONS = [
-  ['late', 'Kasne'], ['today', 'Danas'], ['soon', 'Uskoro'], ['none', 'Bez datuma'],
+  ['late', 'Kasne'], ['today', 'Danas'], ['soon', 'Uskoro'], ['none', 'Bez datuma'], ['closed', 'Zatvoreno (kupio / odustao)'],
 ];
 
 export default function Leads() {
@@ -99,6 +95,10 @@ export default function Leads() {
   const [q, setQ] = useState('');
   const [importFirm, setImportFirm] = useState('dux');
   const [msg, setMsg] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [contact, setContact] = useState(null);
+  const [showCal, setShowCal] = useState(false);
+  const [owner, setOwner] = useState('');
   const fileRef = useRef(null);
 
   const filtered = useMemo(() => {
@@ -106,12 +106,13 @@ export default function Leads() {
     return leads
       .filter((l) => !firm || l.firm === firm)
       .filter((l) => !temp || l.temperature === temp)
+      .filter((l) => !owner || leadOwner(l) === owner)
       .filter((l) => inRange(l, range, from, to))
       .filter((l) => !needle || [l.name, l.email, l.phone, l.wants, l.location].some((v) => (v || '').toLowerCase().includes(needle)))
       .sort((a, b) => (a.followUpDate || '9999').localeCompare(b.followUpDate || '9999') || (a.temperature === 'vruc' ? -1 : 1));
-  }, [leads, firm, temp, q, range, from, to]);
+  }, [leads, firm, temp, owner, q, range, from, to]);
   const counts = Object.fromEntries(['chiara', 'bonvia', 'dux'].map((k) => [k, leads.filter((l) => l.firm === k).length]));
-  const lateCount = leads.filter((l) => followUpState(l) === 'late').length;
+  const lateCount = lateLeads(leads).length;
   const todayCount = leads.filter((l) => followUpState(l) === 'today').length;
 
   const onFile = async (e) => {
@@ -120,14 +121,22 @@ export default function Leads() {
     if (!file) return;
     try {
       const list = await parseExcel(file, importFirm);
-      const hot = list.filter((l) => l.temperature === 'vruc').length;
+      const open = list.filter((l) => !/^zatvoren/i.test(l.status || ''));
+      const hot = open.filter((l) => l.temperature === 'vruc').length;
       if (!list.length) { setMsg('U tablici nema vrućih ni toplih kupaca.'); return; }
-      if (!confirm(`Uvesti ${list.length} kupaca (${hot} vrućih, ${list.length - hot} toplih) u firmu ${importFirm === 'dux' ? 'Dux' : importFirm === 'bonvia' ? 'Bonvia' : 'Chiara'}?\nKupci koji već postoje (isti email) bit će ažurirani.`)) return;
+      if (!confirm(`Uvesti ${open.length} otvorenih kupaca (${hot} vrućih, ${open.length - hot} toplih) u firmu ${importFirm === 'dux' ? 'Dux' : importFirm === 'bonvia' ? 'Bonvia' : 'Chiara'}?\n\nKupci koji već postoje (isti email) bit će ažurirani, a ono što ste upisali u CRM (kontakti, nekretnine, rokovi nakon kontakta) ostaje. Stari rokovi iz tablice se preskaču, a novi kupci dobivaju rok +4 dana (vruć) ili +7 (topao). Zatvoreni (kupio/odustao): ${list.length - open.length}.`)) return;
       const r = actions.importLeads(list);
-      setMsg(`Uvezeno: ${r.added} novih, ${r.updated} ažuriranih.`);
+      setMsg(`Uvezeno: ${r.added} novih, ${r.updated} ažuriranih${r.closed ? `, ${r.closed} zatvorenih preskočeno` : ''}.`);
     } catch (err) {
       setMsg(`Uvoz nije uspio: ${err.message}`);
     }
+  };
+
+  const fixLate = () => {
+    const n = lateLeads(leads).length;
+    if (!n) { setMsg('Nijedan kupac ne kasni.'); return; }
+    if (!confirm(`${n} kupaca kasni s follow-upom. Svima staviti novi rok (vruć +4 dana, topao +7 dana od danas)?`)) return;
+    setMsg(`Novi rok postavljen za ${actions.resetLateFollowUps()} kupaca.`);
   };
 
   return (
@@ -138,6 +147,8 @@ export default function Leads() {
           <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
             <option value="dux">Uvoz u: Dux</option><option value="bonvia">Uvoz u: Bonvia</option><option value="chiara">Uvoz u: Chiara</option>
           </select>
+          <button className="btn-outline" onClick={() => setShowCal(!showCal)}><CalendarDays size={16} /> Kalendar kontakata</button>
+          <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
           <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
           <button className="btn-primary" onClick={() => setForm({})}><Plus size={18} /> Novi kupac</button>
@@ -145,12 +156,22 @@ export default function Leads() {
       </PageHeader>
 
       {msg && <div className="card mb-4 p-3 text-sm text-soft">{msg}</div>}
+      {lateCount > 0 && (
+        <div className="card mb-4 flex flex-wrap items-center justify-between gap-2 border border-red-200 p-3 text-sm">
+          <span><b className="text-red-700">{lateCount}</b> kupaca kasni s follow-upom.</span>
+          <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={fixLate}>Postavi nove rokove (vruć +4, topao +7)</button>
+        </div>
+      )}
+      {showCal && <ContactsCalendar leads={leads} onOpenLead={setDetail} />}
 
       <div className="mb-3"><FirmFilter counts={counts} /></div>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {Object.entries(TEMPERATURES).map(([k, v]) => (
           <button key={k} onClick={() => setTemp(temp === k ? '' : k)} className={temp === k ? 'btn-primary' : 'btn-outline'}>{v.label}</button>
         ))}
+        <select className="field !w-auto !py-2 text-sm" value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Voditelj">
+          <option value="">Svi voditelji</option>{TEAM.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
         <select className="field !w-auto !py-2 text-sm" value={range} onChange={(e) => setRange(e.target.value)} aria-label="Follow-up datum">
           {Object.entries(RANGES).map(([k, v]) => <option key={k} value={k}>Follow-up: {v}</option>)}
         </select>
@@ -172,7 +193,7 @@ export default function Leads() {
           <section key={st} className="mb-7">
             <h2 className="mb-3 text-xl font-semibold">{title} <span className="badge bg-ink text-white">{list.length}</span></h2>
             <div className="grid gap-3 md:grid-cols-2">
-              {list.slice(0, limits[st] || PAGE).map((l) => <LeadCard key={l.id} lead={l} onEdit={() => setForm(l)} />)}
+              {list.slice(0, limits[st] || PAGE).map((l) => <LeadCard key={l.id} lead={l} onEdit={() => setForm(l)} onDetail={setDetail} onContact={setContact} />)}
             </div>
             {list.length > (limits[st] || PAGE) && (
               <button className="btn-outline mt-3" onClick={() => setLimits({ ...limits, [st]: (limits[st] || PAGE) + 40 })}>
@@ -183,6 +204,8 @@ export default function Leads() {
         );
       })}
 
+      {detail && <LeadDetail leadId={detail} onClose={() => setDetail(null)} />}
+      {contact && <ContactDialog lead={contact} onClose={() => setContact(null)} />}
       {form && <LeadForm lead={form.id ? form : undefined} onClose={() => setForm(null)} />}
     </>
   );

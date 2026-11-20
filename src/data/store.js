@@ -2,6 +2,7 @@
 // s ključevima se isto stanje sprema u Supabase i sinkronizira uživo među korisnicima.
 import { buildInitialState, buildBaseState, STANDARD_TASKS } from '../seed';
 import { today } from '../lib/dates';
+import { isClosed, suggestDate, viewedIds, followUpState } from '../lib/leads';
 import { remoteEnabled } from '../lib/supabase';
 import * as remote from './remote';
 
@@ -83,6 +84,14 @@ export async function initRemote() {
 }
 export function stopRemote() { unsubscribeRemote?.(); unsubscribeRemote = null; }
 
+// Isti kupac: isti email, inače isti telefon (samo znamenke), inače isto ime – uvijek unutar iste firme
+const digits = (v) => String(v || '').replace(/\D/g, '');
+const sameLead = (a, b) => {
+  if (a.firm !== b.firm) return false;
+  if (a.email && b.email) return a.email.toLowerCase() === b.email.toLowerCase();
+  if (digits(a.phone).length >= 8 && digits(b.phone).length >= 8) return digits(a.phone) === digits(b.phone);
+  return !a.email && !b.email && a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
+};
 const patchList = (list, id, patch) => list.map((x) => (x.id === id ? { ...x, ...patch } : x));
 
 export const store = {
@@ -180,17 +189,75 @@ export const actions = {
   },
   updateLead(id, patch) { commit({ ...state, leads: patchList(state.leads, id, patch) }); },
   deleteLead(id) { commit({ ...state, leads: state.leads.filter((l) => l.id !== id) }); },
-  // Uvoz: isti email = ažuriranje postojećeg, inače novi redak
+  // Uvoz iz tablice: isti email (u istoj firmi) = ažuriranje, inače novi kupac.
+  // - prazna polja iz tablice ne brišu ono što je upisano u CRM-u
+  // - ako je kupac već imao kontakt u CRM-u, CRM je glavni za rok follow-upa i zadnji kontakt
+  // - novi kupac bez važećeg roka dobiva prijedlog (vruć +4 dana, topao +7)
+  // - zatvoreni (kupio / odustao) se ne dodaju kao novi; postojećima se samo promijeni status
   importLeads(list) {
-    let added = 0, updated = 0;
+    let added = 0, updated = 0, closed = 0;
     const leads = [...state.leads];
     for (const item of list) {
-      const i = item.email ? leads.findIndex((l) => l.email && l.email.toLowerCase() === item.email.toLowerCase() && l.firm === item.firm) : -1;
-      if (i >= 0) { leads[i] = { ...leads[i], ...item, id: leads[i].id }; updated++; }
-      else { leads.push({ status: 'otvoren', notes: '', ...item, id: uid(), createdAt: now() }); added++; }
+      const i = leads.findIndex((l) => sameLead(l, item));
+      if (i >= 0) {
+        const cur = leads[i];
+        const patch = {};
+        for (const [k, v] of Object.entries(item)) if (v !== '' && v != null) patch[k] = v;
+        if (cur.contacts?.length) { delete patch.followUpDate; delete patch.lastContact; }
+        leads[i] = { ...cur, ...patch, id: cur.id };
+        updated++;
+      } else if (isClosed(item)) {
+        closed++;
+      } else {
+        leads.push({ notes: '', ...item, followUpDate: item.followUpDate || suggestDate(item.temperature), id: uid(), createdAt: now() });
+        added++;
+      }
     }
     commit({ ...state, leads });
-    return { added, updated };
+    return { added, updated, closed };
+  },
+  // Jednokratno: svi kupci kojima je rok prošao dobiju novi rok (vruć +4, topao +7)
+  resetLateFollowUps() {
+    let n = 0;
+    const leads = state.leads.map((l) => {
+      if (followUpState(l) !== 'late') return l;
+      n++;
+      return { ...l, followUpDate: suggestDate(l.temperature) };
+    });
+    if (n) commit({ ...state, leads });
+    return n;
+  },
+  // Zabilježi kontakt (i time odradi follow-up). form: sentText, channel, arrivalDate, arrivalNote,
+  // viewedManual, viewedIds[], chosenIds[], nextDate
+  logContact(leadId, form, by) {
+    const lead = state.leads.find((l) => l.id === leadId);
+    if (!lead) return;
+    let viewings = [...(lead.viewings || [])];
+    const have = (id, st) => viewings.some((v) => v.duxId === id && v.status === st);
+    for (const id of form.viewedIds) {
+      viewings = viewings.filter((v) => !(v.duxId === id && v.status === 'planned'));
+      if (!have(id, 'viewed')) viewings.push({ id: uid(), duxId: id, status: 'viewed', note: '', date: today() });
+    }
+    // izabrane za gledanje = popis iz obrasca (zamjenjuje prijašnji popis izabranih)
+    viewings = viewings.filter((v) => v.status !== 'planned' || form.chosenIds.includes(v.duxId));
+    for (const id of form.chosenIds) {
+      if (!have(id, 'planned') && !have(id, 'viewed')) viewings.push({ id: uid(), duxId: id, status: 'planned', note: '', date: null });
+    }
+    const viewedCount = (Number(form.viewedManual) || 0) + viewedIds({ viewings }).length;
+    const contact = {
+      id: uid(), at: now(), by, channel: form.channel, sentText: form.sentText,
+      arrivalDate: form.arrivalDate || null, arrivalNote: form.arrivalNote || '',
+      viewedCount, chosen: form.chosenIds, nextDate: form.nextDate || null,
+    };
+    commit({
+      ...state,
+      leads: patchList(state.leads, leadId, {
+        contacts: [...(lead.contacts || []), contact],
+        viewings, viewedManual: Number(form.viewedManual) || 0,
+        lastSent: form.sentText, arrivalDate: contact.arrivalDate, arrivalNote: contact.arrivalNote,
+        lastContact: today(), followUpDate: form.nextDate || null,
+      }),
+    });
   },
 
   // ---- Objekti i jedinice ----
