@@ -83,8 +83,9 @@ function inRange(l, range, from, to) {
 }
 const PAGE = 20;
 
+// Novi upiti iz maila (review) idu na sam vrh, najnoviji prvi; ostali su po roku follow-upa
 const SECTIONS = [
-  ['late', 'Kasne'], ['today', 'Danas'], ['soon', 'Uskoro'], ['none', 'Bez datuma'], ['closed', 'Zatvoreno (kupio / odustao)'],
+  ['review', 'Novi upiti – provjeri'], ['late', 'Kasne'], ['today', 'Danas'], ['soon', 'Uskoro'], ['none', 'Bez datuma'], ['closed', 'Zatvoreno (kupio / odustao)'],
 ];
 
 export default function Leads() {
@@ -193,7 +194,9 @@ export default function Leads() {
 
       {!filtered.length && <div className="card p-5 text-sm text-soft">Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.</div>}
       {SECTIONS.map(([st, title]) => {
-        const list = filtered.filter((l) => followUpState(l) === st);
+        const list = st === 'review'
+          ? filtered.filter((l) => l.review && followUpState(l) !== 'closed').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+          : filtered.filter((l) => !(l.review && followUpState(l) !== 'closed') && followUpState(l) === st);
         if (!list.length) return null;
         return (
           <section key={st} className="mb-7">
