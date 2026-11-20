@@ -29,6 +29,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
             <span className="text-sm font-semibold">{lead.name}</span>
             <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span>
             <span className={`badge ${state === 'late' ? 'bg-red-100 text-red-700' : state === 'today' ? 'bg-gold/50 text-navy' : 'bg-black/5 text-soft'}`}>{dateBadge}</span>
+            {lead.review && <span className="badge bg-gold text-navy">Novo – provjeri</span>}
             <span className="text-[11px] text-mute">{leadOwner(lead)}</span>
           </div>
           {lead.wants && <div className="mt-1 line-clamp-2 text-xs text-soft">{lead.wants}</div>}
@@ -45,12 +46,13 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
             {wa && <a className="btn-outline !px-3 !py-1.5 text-xs" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={14} /> WhatsApp</a>}
             {lead.email && <a className="btn-outline !px-3 !py-1.5 text-xs" href={`mailto:${lead.email}`}><Mail size={14} /> {lead.email}</a>}
           </div>
-          {[['Lokacija', lead.location], ['Tip', lead.type], ['Cijena', lead.priceRange], ['Izvor', lead.source], ['ID oglasa', lead.listingId],
+          {[['Lokacija', lead.location], ['Tip', lead.type], ['Cijena', lead.priceRange], ['Izvor', lead.source], ['ID oglasa', lead.listingId], ['Oglas', lead.listingTitle],
             ['Jezik', lead.language], ['Prepreka', lead.obstacle], ['Zadnja komunikacija', lead.lastComm], ['Zadnji kontakt', lead.lastContact], ['Napomena', lead.notes]]
             .filter(([, v]) => v).map(([k, v]) => <div key={k}><b className="text-navy">{k}:</b> {v}</div>)}
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-mist pt-3">
+        {lead.review && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.updateLead(lead.id, { review: false })}><Check size={14} /> Podaci su točni</button>}
         <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => onContact(lead)}><Check size={14} /> Follow-up odrađen</button>
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onDetail(lead.id)}><Eye size={14} /> Detalji i povijest</button>
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onData(lead)}><ClipboardEdit size={14} /> Samo upiši podatke</button>
@@ -116,6 +118,7 @@ export default function Leads() {
   const counts = Object.fromEntries(['chiara', 'bonvia', 'dux'].map((k) => [k, leads.filter((l) => l.firm === k).length]));
   const lateCount = lateLeads(leads).length;
   const todayCount = leads.filter((l) => followUpState(l) === 'today').length;
+  const reviewCount = leads.filter((l) => l.review).length;
 
   const onFile = async (e) => {
     const file = e.target.files?.[0];
@@ -144,7 +147,7 @@ export default function Leads() {
   return (
     <>
       <PageHeader title="Kupci i leadovi"
-        subtitle={`${leads.length} kupaca · ${lateCount} kasni · ${todayCount} za danas`}>
+        subtitle={`${leads.length} kupaca · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
         <div className="flex flex-wrap items-center gap-2">
           <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
             <option value="dux">Uvoz u: Dux</option><option value="bonvia">Uvoz u: Bonvia</option><option value="chiara">Uvoz u: Chiara</option>

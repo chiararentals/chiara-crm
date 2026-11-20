@@ -98,3 +98,12 @@ export const contactDay = (c) => {
 };
 export const allContacts = (leads) =>
   leads.flatMap((l) => (l.contacts || []).map((c) => ({ ...c, lead: l })));
+
+// Isti kupac: isti email, inače isti telefon (samo znamenke), inače isto ime – uvijek unutar iste firme
+const digits = (v) => String(v || '').replace(/\D/g, '');
+export const sameLead = (a, b) => {
+  if (a.firm !== b.firm) return false;
+  if (a.email && b.email) return a.email.toLowerCase() === b.email.toLowerCase();
+  if (digits(a.phone).length >= 8 && digits(b.phone).length >= 8) return digits(a.phone) === digits(b.phone);
+  return !a.email && !b.email && a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
+};

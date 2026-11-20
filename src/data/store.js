@@ -2,7 +2,7 @@
 // s ključevima se isto stanje sprema u Supabase i sinkronizira uživo među korisnicima.
 import { buildInitialState, buildBaseState, STANDARD_TASKS } from '../seed';
 import { today } from '../lib/dates';
-import { isClosed, suggestDate, viewedIds, followUpState } from '../lib/leads';
+import { isClosed, suggestDate, viewedIds, followUpState, sameLead } from '../lib/leads';
 import { remoteEnabled } from '../lib/supabase';
 import * as remote from './remote';
 
@@ -84,14 +84,6 @@ export async function initRemote() {
 }
 export function stopRemote() { unsubscribeRemote?.(); unsubscribeRemote = null; }
 
-// Isti kupac: isti email, inače isti telefon (samo znamenke), inače isto ime – uvijek unutar iste firme
-const digits = (v) => String(v || '').replace(/\D/g, '');
-const sameLead = (a, b) => {
-  if (a.firm !== b.firm) return false;
-  if (a.email && b.email) return a.email.toLowerCase() === b.email.toLowerCase();
-  if (digits(a.phone).length >= 8 && digits(b.phone).length >= 8) return digits(a.phone) === digits(b.phone);
-  return !a.email && !b.email && a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
-};
 // Popis nekretnina nakon obrasca: pogledane se dodaju, a "izabrane za gledanje" zamjenjuju prijašnji popis izabranih
 function syncViewings(lead, form) {
   let viewings = [...(lead.viewings || [])];
