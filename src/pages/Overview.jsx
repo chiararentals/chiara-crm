@@ -4,7 +4,7 @@ import { addDays, endOfWeek, startOfWeek } from 'date-fns';
 import { useData } from '../data';
 import PageHeader from '../components/PageHeader';
 import { TEAM } from '../seed';
-import { TEMPERATURES, allContacts, contactDay, CHANNELS, followUpState, isClosed, lateLeads } from '../lib/leads';
+import { TEMPERATURES, allContacts, contactDay, CHANNELS, followUpState, isClosed, lateLeads, isHidden, leadKind } from '../lib/leads';
 import { fmtDate, fmtDateTime, iso, today } from '../lib/dates';
 
 const dayOf = (isoStr) => contactDay({ at: isoStr });
@@ -23,7 +23,8 @@ function rangeOf(preset, from, to) {
 }
 
 export default function Overview() {
-  const { leads, todos, stayTasks, stays } = useData();
+  const { leads: allLeads, todos, stayTasks, stays } = useData();
+  const leads = allLeads.filter((l) => !isHidden(l));
   const [preset, setPreset] = useState('week');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -53,7 +54,7 @@ export default function Overview() {
     return { people, feed };
   }, [leads, todos, stayTasks, stays, a, b]);
 
-  const open = leads.filter((l) => !isClosed(l));
+  const open = leads.filter((l) => !isClosed(l) && leadKind(l) === 'kupac');
   const lastContactAge = (l) => {
     // računa se od zadnjeg kontakta u CRM-u, a ako ga nema, od dana kad je kupac ušao u CRM (stari datumi iz tablice se ne broje)
     const last = (l.contacts || []).map((c) => dayOf(c.at)).sort().pop() || (l.createdAt ? dayOf(l.createdAt) : null);

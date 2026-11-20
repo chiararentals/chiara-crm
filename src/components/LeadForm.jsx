@@ -3,7 +3,7 @@ import Modal from './Modal';
 import { FirmPicker } from './FirmBadge';
 import { actions } from '../data';
 import { useFirm } from '../lib/firm';
-import { TEMPERATURES } from '../lib/leads';
+import { TEMPERATURES, KINDS } from '../lib/leads';
 import { TEAM } from '../seed';
 
 export default function LeadForm({ lead, defaults = {}, onClose }) {
@@ -11,7 +11,7 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
   const editing = !!lead;
   const [f, setF] = useState({
     name: '', firm: gFirm && gFirm !== 'chiara' ? gFirm : 'dux', temperature: 'topao', email: '', phone: '', language: '', source: '',
-    wants: '', nextStep: '', owner: 'Vanja', listingId: '', obstacle: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
+    kind: 'kupac', propertyName: '', askingPrice: '', contractSigned: '', contractUntil: '', wants: '', nextStep: '', owner: 'Vanja', listingId: '', obstacle: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
     ...defaults, ...lead,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -19,7 +19,7 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
   const save = (e) => {
     e.preventDefault();
     if (!f.name.trim()) return;
-    const data = { ...f, followUpDate: f.followUpDate || null };
+    const data = { ...f, followUpDate: f.followUpDate || null, contractSigned: f.contractSigned || null, contractUntil: f.contractUntil || null };
     if (editing) actions.updateLead(lead.id, data); else actions.addLead(data);
     onClose();
   };
@@ -28,6 +28,14 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
   return (
     <Modal title={editing ? 'Uredi kupca' : 'Novi kupac / lead'} onClose={onClose}>
       <form onSubmit={save} className="space-y-3">
+        <div>
+          <label className="label">Vrsta kontakta</label>
+          <div className="flex gap-2">
+            {Object.entries(KINDS).map(([k, v]) => (
+              <button key={k} type="button" onClick={() => setF({ ...f, kind: k })} className={(f.kind || 'kupac') === k ? 'btn-primary !py-1.5' : 'btn-outline !py-1.5'}>{v}</button>
+            ))}
+          </div>
+        </div>
         <div><label className="label">Firma</label><FirmPicker value={f.firm} onChange={(firm) => setF({ ...f, firm })} /></div>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2"><label className="label">Ime</label><input className="field" value={f.name} onChange={set('name')} autoFocus={!editing} /></div>
@@ -48,7 +56,16 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
           <div><label className="label">Jezik</label><input className="field" placeholder="hr / en / de" value={f.language} onChange={set('language')} /></div>
           <div><label className="label">Izvor</label><input className="field" placeholder="web, Njuškalo…" value={f.source} onChange={set('source')} /></div>
         </div>
-        <div><label className="label">Što traži</label><textarea className="field min-h-[60px]" value={f.wants} onChange={set('wants')} /></div>
+        {f.kind === 'vlasnik' && (
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-mist p-3">
+            <div className="col-span-2"><label className="label">Nekretnina</label><input className="field" placeholder="npr. Stan 45 m², Opatija centar" value={f.propertyName || ''} onChange={set('propertyName')} /></div>
+            <div><label className="label">Tražena cijena</label><input className="field" placeholder="npr. 250.000 € ili 900 €/mj" value={f.askingPrice || ''} onChange={set('askingPrice')} /></div>
+            <div><label className="label">DUX ID oglasa</label><input className="field" value={f.listingId || ''} onChange={set('listingId')} /></div>
+            <div><label className="label">Ugovor potpisan</label><input type="date" className="field" value={f.contractSigned || ''} onChange={set('contractSigned')} /></div>
+            <div><label className="label">Ugovor vrijedi do</label><input type="date" className="field" value={f.contractUntil || ''} onChange={set('contractUntil')} /></div>
+          </div>
+        )}
+        <div><label className="label">{f.kind === 'vlasnik' ? 'Što nudi / dogovor' : 'Što traži'}</label><textarea className="field min-h-[60px]" value={f.wants} onChange={set('wants')} /></div>
         <div><label className="label">Prepreka</label><input className="field" value={f.obstacle || ''} onChange={set('obstacle')} /></div>
         <div><label className="label">Sljedeći korak</label><input className="field" value={f.nextStep} onChange={set('nextStep')} /></div>
         <div><label className="label">Napomena</label><textarea className="field min-h-[60px]" value={f.notes} onChange={set('notes')} /></div>

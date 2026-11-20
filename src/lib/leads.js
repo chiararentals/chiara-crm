@@ -9,6 +9,17 @@ export const TEMPERATURES = {
 export const DEFAULT_DAYS = { vruc: 4, topao: 7 };
 export const suggestDate = (temperature) => plusDays(today(), DEFAULT_DAYS[temperature] ?? 7);
 export const isClosed = (l) => /^zatvoren/i.test(l.status || '');
+// Vrsta kontakta: kupac (zadano), vlasnik (nudi nekretninu, ugovor o posredovanju), ostalo
+export const KINDS = { kupac: 'Kupac', vlasnik: 'Vlasnik', ostalo: 'Ostalo' };
+export const leadKind = (l) => l.kind || 'kupac';
+// Prijedlozi iz maila i ignorirani se ne pokazuju u običnim popisima
+export const isHidden = (l) => !!(l.suggestion || l.ignored);
+// Ugovor o posredovanju: istekao / ističe u idućih 30 dana
+export function contractState(l) {
+  if (!l.contractUntil) return null;
+  const d = daysFromToday(l.contractUntil);
+  return d < 0 ? { state: 'expired', days: d } : d <= 30 ? { state: 'soon', days: d } : { state: 'ok', days: d };
+}
 // Tko vodi kupca (u Zadacima se follow-up pojavi u stupcu te osobe). Zadano: Vanja.
 export const leadOwner = (l) => l.owner || 'Vanja';
 
@@ -65,6 +76,7 @@ export async function parseExcel(file, firm) {
 
 // kasni / danas / uskoro / bez datuma
 export function followUpState(lead) {
+  if (isHidden(lead)) return 'hidden';
   if (isClosed(lead)) return 'closed';
   if (!lead.followUpDate) return 'none';
   const d = daysFromToday(lead.followUpDate);

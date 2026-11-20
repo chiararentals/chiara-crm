@@ -13,13 +13,13 @@ const PORTALS = {
   'nekretnine-kvarner.hr': 'nekretnine kvarner',
   'kvadratko.hr': 'kvadratko',
 };
-const LANG = { hrv: 'hr', srp: 'hr', bos: 'hr', eng: 'en', deu: 'de', ita: 'it', slv: 'sl' };
+const LANG = { hrv: 'hr', srp: 'hr', bos: 'hr', cnr: 'hr', eng: 'en', deu: 'de', gsw: 'de', bar: 'de', ita: 'it', slv: 'sl', fra: 'fr', rus: 'ru', pol: 'pl', ces: 'cs', slk: 'sk', hun: 'hu', nld: 'nl', swe: 'sv' };
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 // hrvatski i međunarodni oblici: 091 234 5678, 0919455829, +385 91 234 567, 00385…
 const PHONE_RE = /(?:\+|00)?\d[\d\s/().-]{7,16}\d/g;
 
-const domainOf = (addr = '') => addr.toLowerCase().split('@')[1] || '';
-const isOwn = (addr) => domainOf(addr).endsWith(OWN_DOMAIN);
+export const domainOf = (addr = '') => addr.toLowerCase().split('@')[1] || '';
+export const isOwn = (addr) => domainOf(addr).endsWith(OWN_DOMAIN);
 const cleanLines = (t) => String(t || '').replace(/\r/g, '').split('\n').map((l) => l.trim());
 
 // Domena portala (ključ u PORTALS) ili null
@@ -53,16 +53,16 @@ export function findPhone(text, ownNumbers = []) {
   return '';
 }
 
-function detectLanguage(text, fallback = 'hr') {
+export function detectLanguage(text, fallback = 'hr') {
   const t = String(text || '').trim();
   if (t.length < 25) return fallback;
   return LANG[franc(t, { minLength: 10 })] || fallback;
 }
 
-const hot = /razgled|pogledat|vidjeti stan|vidjeti kuću|termin|besichtig|viewing|visita|visit /i;
+const hot = /razgled|pogledat|pogledali|vidjeti stan|vidjeti kuću|termin|dogovoriti|besichtig|anschauen|termin vereinbaren|viewing|view the|see the (property|apartment|house)|schedule a (visit|viewing)|visita|vedere (l'|la |il )|appuntamento|visitare/i;
 const rental = /najam|za rent|\brent\b|affitto|miete|\bmonatlich/i;
-const GREETING = /^(po[sš]tovani|po[sš]tovanje|dobar dan|hello|dear|buongiorno|guten tag|hi|pozdrav)\b/i;
-const CLOSING = /^(lp|l\.p\.|lijep pozdrav|srda[cč]an pozdrav|pozdrav|hvala|thanks|regards|kind regards|best regards|cordiali saluti|grazie|mfg|--)\b/i;
+const GREETING = /^(po[sš]tovani|po[sš]tovanje|dobar dan|dobro jutro|hello|dear|hi|good (morning|afternoon|evening)|buongiorno|buonasera|gentile|egregio|spett\.?le|guten (tag|morgen|abend)|sehr geehrte|liebe|hallo|pozdrav)(?=[\s,.!:-]|$)/i;
+const CLOSING = /^(lp|l\.p\.|lijep pozdrav|srda[cč]an pozdrav|s po[sš]tovanjem|pozdrav|hvala|thanks|thank you|regards|kind regards|best regards|best wishes|sincerely|yours|cordiali saluti|distinti saluti|saluti|grazie|mit freundlichen gr[uü][sß]en|freundliche gr[uü][sß]e|viele gr[uü][sß]e|beste gr[uü][sß]e|danke|mfg|--)(?=[\s,.!:\/-]|$)/i;
 
 // Ime iz potpisa poruke (zadnji kratki redak nakon pozdrava); inače prazno
 function nameFromSignature(message) {
@@ -263,7 +263,7 @@ function looksLikeInquiry(key, m) {
   }
 }
 
-const NOISE = /novi rezultati koji odgovaraju|spremljen(?:oj|a) pretra|unsubscribe od|odjava s liste|newsletter|automatski odgovor|out of office|delivery status/i;
+export const NOISE = /novi rezultati koji odgovaraju|spremljen(?:oj|a) pretra|unsubscribe od|odjava s liste|newsletter|automatski odgovor|out of office|delivery status/i;
 
 // Glavna funkcija. ownNumbers = telefoni agenata/tvrtke koji se ne smiju pročitati kao kupčevi.
 export function parseMail(m, { ownNumbers = [] } = {}) {

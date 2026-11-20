@@ -235,6 +235,14 @@ export const actions = {
     if (n) commit({ ...state, leads });
     return n;
   },
+  // Prijedlog iz maila: dodaj kao kupca / vlasnika (ili ignoriraj)
+  acceptSuggestion(id, kind) {
+    const lead = state.leads.find((l) => l.id === id);
+    if (!lead) return;
+    commit({ ...state, leads: patchList(state.leads, id, { suggestion: false, ignored: false, kind, review: true, followUpDate: suggestDate(lead.temperature || 'topao') }) });
+  },
+  ignoreSuggestion(id) { commit({ ...state, leads: patchList(state.leads, id, { suggestion: false, ignored: true }) }); },
+
   // Samo upiši podatke: ažurira 4 odgovora, ali NE bilježi kontakt i NE mijenja rok follow-upa.
   // Prazno polje (null/undefined) = ne mijenjaj.
   updateLeadFacts(leadId, form) {

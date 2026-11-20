@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parseMail } from './_lib/mail/parse.js';
 import { mergeLead } from './_lib/mail/merge.js';
 import { applySent } from './_lib/mail/sent.js';
+import { makeSuggestion } from './_lib/mail/suggest.js';
 
 export const config = { maxDuration: 60 };
 
@@ -37,7 +38,7 @@ async function findIn(imap, folder, needle, days, ownNumbers, out) {
     for (const uid of hits.slice(0, 8)) {
       const full = await imap.fetchOne(String(uid), { source: true }, { uid: true });
       const mail = await simpleParser(full.source);
-      const m = { from: mail.from?.value?.[0]?.address || '', replyTo: (mail.replyTo?.value || []).map((a) => a.address), subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `uid-${uid}` };
+      const m = { from: mail.from?.value?.[0]?.address || '', fromName: mail.from?.value?.[0]?.name || '', replyTo: (mail.replyTo?.value || []).map((a) => a.address), subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `uid-${uid}` };
       const r = parseMail(m, { ownNumbers });
       out.push({
         mapa: folder, datum: m.date ? m.date.toISOString().slice(0, 10) : '', od: m.from, naslov: m.subject.slice(0, 70),
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
   const dry = req.query?.dry === '1' || !!find; // pretraga (find) nikad ne upisuje
   const days = Number(req.query?.days || (find ? 60 : process.env.SYNC_DAYS || 3));
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const stats = { found: [], preview: [], folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
+  const stats = { suggested: 0, found: [], preview: [], folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
   const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
   const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
@@ -77,6 +78,14 @@ export default async function handler(req, res) {
   }
   const leads = rows.map((r) => r.data);
   const changed = new Map();
+
+  const addSuggestion = (cand) => {
+    if (stats.suggested >= 15) return;
+    const sug = makeSuggestion(leads, cand);
+    if (!sug) return;
+    leads.push(sug); changed.set(sug.id, sug); stats.suggested++;
+    if (stats.preview.length < 15) stats.preview.push({ akcija: 'prijedlog', ime: sug.name, email: sug.email, jezik: sug.language, naslov: sug.suggestSubject });
+  };
 
   const imap = new ImapFlow({
     host: process.env.MAIL_HOST, port: Number(process.env.MAIL_PORT || 993), secure: true,
@@ -121,7 +130,10 @@ export default async function handler(req, res) {
                 lastComm: `${(m.date || new Date()).toISOString().slice(0, 10)} odgovor kupca: ${String(m.text || '').trim().slice(0, 200)}` };
               leads[leads.indexOf(cur)] = upd; changed.set(upd.id, upd); stats.replies++;
             }
-          } else if (stats.unknown.length < 40) stats.unknown.push({ from: m.from.split('@')[1] || '', subject: m.subject.slice(0, 80) });
+          } else {
+            addSuggestion({ address: m.from, name: m.fromName, subject: m.subject, text: m.text, messageId: m.messageId, date: m.date });
+            if (stats.unknown.length < 40) stats.unknown.push({ from: m.from.split('@')[1] || '', subject: m.subject.slice(0, 80) });
+          }
           continue;
         }
         if (r.kind === 'skip') {
@@ -160,6 +172,10 @@ export default async function handler(req, res) {
             subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `sent-uid-${msg.uid}`,
           }, { by: sentBy });
           for (const l of out) { changed.set(l.id, l); stats.sentLogged++; }
+          // primatelji kojih još nema u CRM-u: prijedlog (samo privatne adrese, da ne bude buke)
+          for (const r of [...(mail.to?.value || []), ...(mail.cc?.value || [])]) {
+            addSuggestion({ address: r.address, name: r.name, subject: mail.subject || '', text: mail.text || '', messageId: mail.messageId, date: mail.date });
+          }
         }
       } finally { lock2.release(); }
     } else stats.skipped['mapa Poslano nije pronađena'] = 1;

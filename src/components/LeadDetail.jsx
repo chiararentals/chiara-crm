@@ -6,7 +6,7 @@ import ContactDialog from './ContactDialog';
 import LeadForm from './LeadForm';
 import FirmBadge from './FirmBadge';
 import { actions, useData } from '../data';
-import { CHANNELS, TEMPERATURES, parseIds, viewedTotal, waLink } from '../lib/leads';
+import { CHANNELS, TEMPERATURES, parseIds, viewedTotal, waLink, leadKind, KINDS } from '../lib/leads';
 import { fmtDateTime, fmtDate } from '../lib/dates';
 
 const uid = () => crypto.randomUUID();
@@ -37,6 +37,7 @@ export default function LeadDetail({ leadId, onClose }) {
     <Modal title={lead.name} onClose={onClose} wide>
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2">
+          {leadKind(lead) !== 'kupac' && <span className="badge bg-navy text-white">{KINDS[leadKind(lead)]}</span>}
           <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span>
           <FirmBadge firm={lead.firm} />
           <span className="text-xs text-soft">Voditelj: <b>{lead.owner || 'Vanja'}</b></span>
@@ -53,10 +54,10 @@ export default function LeadDetail({ leadId, onClose }) {
         <div>
           <LeadFacts lead={lead} />
           <button className="btn-primary mt-3 w-full" onClick={() => setDialog('contact')}><Check size={16} /> Zabilježi kontakt / odradi follow-up</button>
-          <button className="btn-outline mt-2 w-full" onClick={() => setDialog('data')}>Samo upiši podatke (bez bilježenja kontakta)</button>
+          {leadKind(lead) === 'kupac' && <button className="btn-outline mt-2 w-full" onClick={() => setDialog('data')}>Samo upiši podatke (bez bilježenja kontakta)</button>}
         </div>
 
-        <section>
+        {leadKind(lead) === 'kupac' && <section>
           <h3 className="mb-2 text-lg font-semibold">Nekretnine (DUX ID) <span className="text-sm font-normal text-mute">· ukupno pogledao: {viewedTotal(lead)}</span></h3>
           <label className="label">Ručno upisan broj pogledanih</label>
           <input type="number" min="0" className="field mb-3 !w-28" defaultValue={lead.viewedManual || 0}
@@ -80,7 +81,7 @@ export default function LeadDetail({ leadId, onClose }) {
               </form>
             ))}
           </div>
-        </section>
+        </section>}
 
         <section>
           <h3 className="mb-2 text-lg font-semibold">Povijest kontakata</h3>

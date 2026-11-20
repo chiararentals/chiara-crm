@@ -5,6 +5,7 @@ import { simpleParser } from 'mailparser';
 import { parseMail } from './parse.js';
 import { mergeLead } from './merge.js';
 import { applySent, cleanSentText, senderName } from './sent.js';
+import { makeSuggestion, worthSuggesting } from './suggest.js';
 
 const eml = (h, body) => `${Object.entries(h).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`;
 const read = async (raw) => {
@@ -242,4 +243,27 @@ test('Reklama portala nije upit; proslijeđeni upit („Fwd:”) kolege s naše 
 test('Odgovor kupca („Re:”) koji citira mail portala nije novi upit', async () => {
   const reply = { from: 'kupac.test@gmail.com', replyTo: [], subject: 'Re: Novi kontakt za oglas 45670', text: 'Hvala, dolazim u petak.\n\n' + NEKRETNINE, date: new Date(), messageId: '<r9@x>' };
   assert.equal(parseMail(reply).kind, 'unknown');
+});
+
+const generic = (text, subject = 'Anfrage') => parseMail({ from: 'noreply@nekretnine-kvarner.hr', replyTo: ['kupac.test@example.com'], subject, text, date: new Date(), messageId: '<g@x>' });
+
+test('Višejezični upiti: njemački, talijanski, engleski – jezik, ime iz potpisa, razgled → vruć', () => {
+  const de = generic('Guten Tag,\n\nich interessiere mich für das Baugrundstück in Opatija und würde gerne einen Termin für eine Besichtigung vereinbaren. Können Sie mir bitte weitere Informationen senden?\n\nMit freundlichen Grüßen\nChristian Hübner');
+  assert.equal(de.lead.language, 'de'); assert.equal(de.lead.name, 'Christian Hübner'); assert.equal(de.lead.temperature, 'vruc');
+  const it = generic('Buongiorno,\n\nmi interessa questo immobile a Opatija, vorrei avere maggiori informazioni sul prezzo e sulla disponibilità della casa.\n\nCordiali saluti\nPaolo Rossi');
+  assert.equal(it.lead.language, 'it'); assert.equal(it.lead.name, 'Paolo Rossi'); assert.equal(it.lead.temperature, 'topao');
+  const en = generic('Hello,\n\nI am interested in the apartment you advertise in Opatija and would like to schedule a viewing next week. Could you please send me more details about the price?\n\nKind regards,\nJohn Smith');
+  assert.equal(en.lead.language, 'en'); assert.equal(en.lead.name, 'John Smith'); assert.equal(en.lead.temperature, 'vruc');
+});
+
+test('Prijedlozi: privatna adresa koje nema u CRM-u da; poslovna, noreply, postojeći kupac, vlastita ne', () => {
+  const leads = [{ id: 'l1', email: 'vec.postoji@gmail.com' }];
+  const base = { subject: 'Ugovor o posredovanju', text: 'Poštovani, šaljem potpisani ugovor.', messageId: '<s@x>' };
+  const s = makeSuggestion(leads, { ...base, address: 'Katica.Test@gmail.com', name: 'Katica Test' });
+  assert.equal(s.suggestion, true); assert.equal(s.name, 'Katica Test'); assert.equal(s.email, 'katica.test@gmail.com');
+  assert.equal(makeSuggestion(leads, { ...base, address: 'vec.postoji@gmail.com' }), null);
+  assert.equal(worthSuggesting('info@primorac.hr'), false);
+  assert.equal(worthSuggesting('noreply@gmail.com'), false);
+  assert.equal(worthSuggesting('kolega@dux-nekretnine.hr'), false);
+  assert.equal(worthSuggesting('netko@gmail.com', 'Black Friday newsletter'), false);
 });

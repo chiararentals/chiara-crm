@@ -15,6 +15,9 @@ Izvor se prepoznaje po pošiljatelju, a ako on nije poznat, po tipičnom tekstu 
 
 **Najam se uvozi** (kupac dobiva tip „najam”; preskače se samo ako postavite `SKIP_RENTALS=1`). Preskače se: obavijesti „Novi rezultati koji odgovaraju vašoj pretrazi”, vlastiti mailovi, nepoznati pošiljatelji. Kupac koji već postoji (isti email, pa telefon) se **osvježi** (zadnja komunikacija, novi ID oglasa), a njegov rok follow-upa i sve što je upisano u CRM ostaje.
 
+## Prijedlozi: dopisivanje s ljudima koji nisu poslali upit preko portala
+Ako vam netko napiše (ili vi napišete njemu) s privatne adrese (gmail, outlook, hotmail, yahoo, gmx, libero…), a još nije u CRM-u, pojavit će se u CRM-u u odjeljku **„Prijedlozi iz maila: dodati u CRM?”** s gumbima **Dodaj kao kupca / Dodaj kao vlasnika / Ignoriraj**. Ništa se ne dodaje samo. Preskaču se vlastite adrese, portali, noreply/info/office adrese i reklame; poslovne domene se ne predlažu (osim uz `SUGGEST_ALL=1`). Najviše 15 prijedloga po pokretanju.
+
 ## Poslani mailovi = odrađen follow-up
 Servis čita i mapu **Poslano**. Ako je mail poslan kupcu koji je u CRM-u (isti email), upisuje se kontakt: tko (ime iz potpisa u mailu: Marko, Lea ili Vanja; ako se ne prepozna, `SENT_AS_NAME`, zadano Vanja), kada, što je napisano (bez citirane povijesti), a rok sljedećeg follow-upa se računa od dana slanja (vruć +4, topao +7). Kupac dobiva oznaku **„Dopuni podatke”**, jer ostala tri odgovora (kad dolazi, koliko je pogledao, izabrane nekretnine) mail sam ne sadrži; upisuju se kroz „Samo upiši podatke”. Odgovori kupaca iz njihovih mailova osvježavaju „zadnju komunikaciju”.
 

@@ -2,12 +2,13 @@ import { useState } from 'react';
 import Modal from './Modal';
 import { actions } from '../data';
 import { useMe } from '../lib/me';
-import { CHANNELS, parseIds, plannedIds, suggestDate, TEMPERATURES } from '../lib/leads';
+import { CHANNELS, parseIds, plannedIds, suggestDate, TEMPERATURES, leadKind } from '../lib/leads';
 
 // Odrađen follow-up / kontakt: 4 obavezna odgovora + datum sljedećeg follow-upa.
 export default function ContactDialog({ lead, onClose, dataOnly }) {
   const [me] = useMe();
   const known = lead.contacts?.length > 0;
+  const buyer = leadKind(lead) === 'kupac'; // za vlasnike i ostale vrijedi samo pitanje 1 (što je poslano / dogovoreno)
   const [f, setF] = useState({
     sentText: '', channel: 'whatsapp',
     arrival: lead.arrivalDate ? 'date' : known ? 'unknown' : '', arrivalDate: lead.arrivalDate || '', arrivalNote: lead.arrivalNote || '',
@@ -20,7 +21,7 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
 
   const missing = [];
   if (!dataOnly && !f.sentText.trim()) missing.push('što je poslano');
-  if (!dataOnly) {
+  if (!dataOnly && buyer) {
     if (!(f.arrival === 'unknown' || (f.arrival === 'date' && f.arrivalDate))) missing.push('kad dolazi');
     if (f.viewedManual === '' || Number(f.viewedManual) < 0) missing.push('koliko je pogledao');
     if (!(f.chosen === 'none' || chosenIds.length)) missing.push('izabrana nekretnina');
@@ -40,8 +41,8 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
     }
     actions.logContact(lead.id, {
       sentText: f.sentText.trim(), channel: f.channel,
-      arrivalDate: f.arrival === 'date' ? f.arrivalDate : null, arrivalNote: f.arrival === 'unknown' ? f.arrivalNote.trim() : '',
-      viewedManual: f.viewedManual, viewedIds: parseIds(f.viewedText), chosenIds,
+      arrivalDate: buyer && f.arrival === 'date' ? f.arrivalDate : lead.arrivalDate || null, arrivalNote: buyer && f.arrival === 'unknown' ? f.arrivalNote.trim() : lead.arrivalNote || '',
+      viewedManual: buyer ? f.viewedManual : lead.viewedManual ?? 0, viewedIds: buyer ? parseIds(f.viewedText) : [], chosenIds: buyer ? chosenIds : plannedIds(lead),
       nextDate: f.noNext ? null : f.nextDate || null,
     }, me);
     onClose();
@@ -56,7 +57,7 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
   return (
     <Modal title={`${dataOnly ? 'Podaci' : 'Follow-up'}: ${lead.name}`} onClose={onClose}>
       <form onSubmit={save} className="space-y-4">
-        <p className="text-sm text-soft">{dataOnly ? 'Upiši što znaš. Ovo NE bilježi kontakt i ne mijenja rok follow-upa.' : 'Odgovori na 4 pitanja su obavezni.'} <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span></p>
+        <p className="text-sm text-soft">{dataOnly ? 'Upiši što znaš. Ovo NE bilježi kontakt i ne mijenja rok follow-upa.' : buyer ? 'Odgovori na 4 pitanja su obavezni.' : 'Upiši što je poslano ili dogovoreno.'} <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span></p>
 
         <div>
           <label className="label">1. Što mu je poslano / što ste dogovorili{dataOnly ? ' (neobavezno)' : ''}</label>
@@ -66,6 +67,7 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
           </select>}
         </div>
 
+        {buyer && <>
         <div>
           <label className="label">2. Kad potencijalno dolazi u Hrvatsku</label>
           <div className="grid grid-cols-2 gap-2">{radio('arrival', 'date', 'Zna datum')}{radio('arrival', 'unknown', 'Još ne zna')}</div>
@@ -85,6 +87,7 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
           <div className="grid grid-cols-2 gap-2">{radio('chosen', 'ids', 'Da, izabrao je')}{radio('chosen', 'none', 'Još nije')}</div>
           {f.chosen === 'ids' && <input className="field mt-2" placeholder="ID-ovi iz DUX baze (odvoji zarezom)" value={f.chosenText} onChange={set('chosenText')} />}
         </div>
+        </>}
 
         {!dataOnly && <div className="rounded-xl bg-mist p-3">
           <label className="label">Sljedeći follow-up</label>

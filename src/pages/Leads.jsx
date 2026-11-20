@@ -10,7 +10,7 @@ import LeadDetail from '../components/LeadDetail';
 import ContactDialog from '../components/ContactDialog';
 import ContactsCalendar from '../components/ContactsCalendar';
 import { exportLeads } from '../lib/exportLeads';
-import { TEMPERATURES, followUpState, parseExcel, waLink, leadOwner, lateLeads } from '../lib/leads';
+import { TEMPERATURES, KINDS, followUpState, parseExcel, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
 import { fmtShort, today, plusDays } from '../lib/dates';
 import { TEAM } from '../seed';
 
@@ -31,6 +31,9 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
             <span className={`badge ${state === 'late' ? 'bg-red-100 text-red-700' : state === 'today' ? 'bg-gold/50 text-navy' : 'bg-black/5 text-soft'}`}>{dateBadge}</span>
             {lead.review && <span className="badge bg-gold text-navy">Novo – provjeri</span>}
             {lead.factsPending && <span className="badge bg-navy/10 text-navy">Dopuni podatke</span>}
+            {leadKind(lead) !== 'kupac' && <span className="badge bg-navy text-white">{KINDS[leadKind(lead)]}</span>}
+            {contractState(lead)?.state === 'expired' && <span className="badge bg-red-600 text-white">Ugovor istekao</span>}
+            {contractState(lead)?.state === 'soon' && <span className="badge bg-gold text-navy">Ugovor ističe za {contractState(lead).days} d</span>}
             <span className="text-[11px] text-mute">{leadOwner(lead)}</span>
           </div>
           {lead.wants && <div className="mt-1 line-clamp-2 text-xs text-soft">{lead.wants}</div>}
@@ -56,7 +59,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
         {lead.review && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.updateLead(lead.id, { review: false })}><Check size={14} /> Podaci su točni</button>}
         <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => onContact(lead)}><Check size={14} /> Follow-up odrađen</button>
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onDetail(lead.id)}><Eye size={14} /> Detalji i povijest</button>
-        <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onData(lead)}><ClipboardEdit size={14} /> Samo upiši podatke</button>
+        {leadKind(lead) === 'kupac' && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onData(lead)}><ClipboardEdit size={14} /> Samo upiši podatke</button>}
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={onEdit}><Pencil size={14} /> Uredi</button>
       </div>
     </div>
@@ -88,8 +91,26 @@ const SECTIONS = [
   ['review', 'Novi upiti – provjeri'], ['late', 'Kasne'], ['today', 'Danas'], ['soon', 'Uskoro'], ['none', 'Bez datuma'], ['closed', 'Zatvoreno (kupio / odustao)'],
 ];
 
+function SuggestionCard({ lead }) {
+  return (
+    <div className="rounded-xl border border-black/5 bg-white p-3.5 shadow-card">
+      <div className="text-sm font-semibold">{lead.name}</div>
+      <div className="text-xs text-soft">{lead.email}{lead.language ? ` · ${lead.language}` : ''}</div>
+      {lead.suggestSubject && <div className="mt-1 line-clamp-2 text-xs text-soft">„{lead.suggestSubject}”</div>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => actions.acceptSuggestion(lead.id, 'kupac')}>Dodaj kao kupca</button>
+        <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.acceptSuggestion(lead.id, 'vlasnik')}>Dodaj kao vlasnika</button>
+        <button className="text-xs text-mute underline" onClick={() => actions.ignoreSuggestion(lead.id)}>Ignoriraj</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Leads() {
-  const { leads } = useData();
+  const { leads: allLeads } = useData();
+  const leads = useMemo(() => allLeads.filter((l) => !isHidden(l)), [allLeads]);
+  const suggestions = allLeads.filter((l) => l.suggestion);
+  const [kind, setKind] = useState('');
   const [form, setForm] = useState(null);
   const [firm] = useFirm();
   const [range, setRange] = useState('all');
@@ -111,12 +132,13 @@ export default function Leads() {
     const needle = q.trim().toLowerCase();
     return leads
       .filter((l) => !firm || l.firm === firm)
+      .filter((l) => !kind || leadKind(l) === kind)
       .filter((l) => !temp || l.temperature === temp)
       .filter((l) => !owner || leadOwner(l) === owner)
       .filter((l) => inRange(l, range, from, to))
       .filter((l) => !needle || [l.name, l.email, l.phone, l.wants, l.location].some((v) => (v || '').toLowerCase().includes(needle)))
       .sort((a, b) => (a.followUpDate || '9999').localeCompare(b.followUpDate || '9999') || (a.temperature === 'vruc' ? -1 : 1));
-  }, [leads, firm, temp, owner, q, range, from, to]);
+  }, [leads, firm, kind, temp, owner, q, range, from, to]);
   const counts = Object.fromEntries(['chiara', 'bonvia', 'dux'].map((k) => [k, leads.filter((l) => l.firm === k).length]));
   const lateCount = lateLeads(leads).length;
   const todayCount = leads.filter((l) => followUpState(l) === 'today').length;
@@ -149,7 +171,7 @@ export default function Leads() {
   return (
     <>
       <PageHeader title="Kupci i leadovi"
-        subtitle={`${leads.length} kupaca · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
+        subtitle={`${leads.length} kontakata · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
         <div className="flex flex-wrap items-center gap-2">
           <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
             <option value="dux">Uvoz u: Dux</option><option value="bonvia">Uvoz u: Bonvia</option><option value="chiara">Uvoz u: Chiara</option>
@@ -176,6 +198,9 @@ export default function Leads() {
         {Object.entries(TEMPERATURES).map(([k, v]) => (
           <button key={k} onClick={() => setTemp(temp === k ? '' : k)} className={temp === k ? 'btn-primary' : 'btn-outline'}>{v.label}</button>
         ))}
+        <select className="field !w-auto !py-2 text-sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Vrsta">
+          <option value="">Sve vrste</option>{Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
         <select className="field !w-auto !py-2 text-sm" value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Voditelj">
           <option value="">Svi voditelji</option>{TEAM.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
@@ -192,6 +217,13 @@ export default function Leads() {
         <input className="field !w-auto min-w-[10rem] flex-1 !py-2 text-sm" placeholder="Traži ime, email, telefon…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
+      {suggestions.length > 0 && !kind && (
+        <section className="mb-7">
+          <h2 className="mb-1 text-xl font-semibold">Prijedlozi iz maila: dodati u CRM? <span className="badge bg-ink align-middle text-white">{suggestions.length}</span></h2>
+          <p className="mb-3 text-xs text-mute">Ljudi s kojima ste se dopisivali, a još nisu u CRM-u. Ništa se ne dodaje dok ne kliknete.</p>
+          <div className="grid gap-3 md:grid-cols-2">{suggestions.map((l) => <SuggestionCard key={l.id} lead={l} />)}</div>
+        </section>
+      )}
       {!filtered.length && <div className="card p-5 text-sm text-soft">Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.</div>}
       {SECTIONS.map(([st, title]) => {
         const list = st === 'review'
