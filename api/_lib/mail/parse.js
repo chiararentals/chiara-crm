@@ -33,6 +33,7 @@ export function detectPortal(m) {
   if (key) return key;
   const txt = `${m.subject}\n${m.text || ''}`;
   if (/Klijent je zainteresiran za Vašu nekretninu/i.test(txt) || /indomio/i.test(m.from || '')) return 'indomio.hr';
+  if (/Imate novu poruku/i.test(txt) && /Primljena poruka za oglas/i.test(txt)) return 'nekretnine.hr';
   if (/Novi upit kupca za va[sš] oglas/i.test(txt) || /kvadratko/i.test(`${m.from} ${txt.slice(-500)}`)) return 'kvadratko.hr';
   return null;
 }
@@ -247,15 +248,33 @@ function parseNekretnineHr(m, ownNumbers) {
   };
 }
 
+// Portali šalju i reklame/obavijesti; upit je samo ono što ima tipične oznake upita
+function looksLikeInquiry(key, m) {
+  const t = m.text || '';
+  switch (key) {
+    case 'indomio.hr': return /Klijent je zainteresiran/i.test(t);
+    case 'kvadratko.hr': return /Novi upit kupca|Poruka kupca/i.test(`${m.subject}\n${t}`);
+    case 'nekretnine.hr': return /Novi kontakt|Imate novu poruku|Primljena poruka za oglas/i.test(`${m.subject}\n${t}`);
+    case 'njuskalo.hr': return /^Upit\b|\bupit\b/i.test(m.subject);
+    case 'luxuryestate.com': return /^ID\s+\d+/im.test(t) || /richiesta|upit|inquiry|anfrage/i.test(m.subject);
+    default: return true;
+  }
+}
+
 const NOISE = /novi rezultati koji odgovaraju|spremljen(?:oj|a) pretra|unsubscribe od|odjava s liste|newsletter|automatski odgovor|out of office|delivery status/i;
 
 // Glavna funkcija. ownNumbers = telefoni agenata/tvrtke koji se ne smiju pročitati kao kupčevi.
 export function parseMail(m, { ownNumbers = [] } = {}) {
   const from = (m.from || '').toLowerCase();
   const formMail = isWebForm(m.subject) || isNewContact(m.subject);
-  if (isOwn(from) && !formMail) return { kind: 'skip', reason: 'vlastiti mail' };
+  // kolega s naše domene proslijedio je upit portala ("Fwd: …"): čita se original iz tijela
+  const forwarded = isOwn(from) && /^\s*(fwd?|fw)\s*:/i.test(m.subject || '');
+  if (forwarded) m = { ...m, text: String(m.text || '').replace(/^[>\s]+/gm, ''), from: 'forward@forward.invalid' };
+  if (isOwn(from) && !formMail && !forwarded) return { kind: 'skip', reason: 'vlastiti mail' };
   if (NOISE.test(`${m.subject} ${(m.text || '').slice(0, 600)}`)) return { kind: 'skip', reason: 'obavijest / newsletter' };
   const key = detectPortal(m);
+  if (forwarded && !key) return { kind: 'skip', reason: 'vlastiti mail' };
+  if (key && !looksLikeInquiry(key, m)) return { kind: 'skip', reason: 'obavijest / newsletter' };
   if (!key && formMail) {
     const w = parseWebForm(m, ownNumbers);
     if (!w) return { kind: 'skip', reason: 'nema email adrese kupca' };

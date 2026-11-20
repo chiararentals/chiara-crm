@@ -227,3 +227,14 @@ test('Nekretnine.hr („Novi kontakt za oglas N”): ime, email, telefon, ID, ta
   assert.equal(r.lead.language, 'it');
   assert.equal(r.lead.priceRange, '');
 });
+
+test('Reklama portala nije upit; proslijeđeni upit („Fwd:”) kolege s naše domene se čita', async () => {
+  const promo = { from: 'info@indomio.hr', replyTo: ['info@indomio.hr'], subject: 'Black Friday stiže na Nekretnine.hr!', text: 'Black Friday ponuda\nUštedite do 40%\nindomio', date: new Date(), messageId: '<p1@x>' };
+  const rp = parseMail(promo);
+  assert.equal(rp.kind, 'skip');
+  const fwd = { from: 'tony@dux-nekretnine.hr', replyTo: [], subject: 'Fwd: Novi kontakt za oglas 45670', text: '---------- Forwarded message ----------\n' + NEKRETNINE, date: new Date(), messageId: '<f1@x>' };
+  const rf = parseMail(fwd);
+  assert.equal(rf.kind, 'lead');
+  assert.equal(rf.lead.email, 'serena.test@example.com');
+  assert.equal(rf.lead.listingId, '45670');
+});

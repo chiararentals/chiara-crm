@@ -63,7 +63,7 @@ export default async function handler(req, res) {
     const wanted = (process.env.MAIL_FOLDERS || '').split(',').map((f) => f.trim()).filter(Boolean);
     const extra = wanted.length
       ? wanted.filter((f) => boxes.some((b) => b.path === f))
-      : boxes.filter((b) => /rije[sš]eno|upit|portal|njuskalo|kvadratko/i.test(b.path.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && b.path.toUpperCase() !== 'INBOX').map((b) => b.path);
+      : boxes.filter((b) => /rije[sš]eno|upit|portal|njuskalo|kvadratko|automatsk/i.test(b.path.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && b.path.toUpperCase() !== 'INBOX').map((b) => b.path);
     stats.extraFolders = extra;
     for (const folder of ['INBOX', ...extra]) {
     const lock = await imap.getMailboxLock(folder, { readOnly: true }); // samo čitanje: ništa se ne mijenja u sandučiću
