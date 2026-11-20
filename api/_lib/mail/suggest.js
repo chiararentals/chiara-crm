@@ -13,7 +13,7 @@ const PERSONAL = new Set([
 const AUTO_LOCAL = /^(no-?reply|do-?not-?reply|newsletter|news|info|office|marketing|mailer-daemon|postmaster|notifications?|support|billing|admin|sales|contact|bounce|system)/i;
 
 const personal = (addr) => { const d = domainOf(addr); return PERSONAL.has(d) || d.endsWith('onmicrosoft.com'); };
-const titleFromEmail = (a) => a.split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, '').trim();
+const titleFromEmail = (a) => a.split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, '').trim().replace(/(^|\s)(\p{L})/gu, (_, p, c) => p + c.toUpperCase());
 
 // Je li ova adresa smislena za prijedlog?
 // Nazivi koji upućuju na tvrtku/ured, a ne na osobu
