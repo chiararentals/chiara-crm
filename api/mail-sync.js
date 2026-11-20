@@ -21,6 +21,33 @@ function keyKind(key = '') {
   try { return JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString()).role || 'nepoznato'; } catch { return 'nepoznato'; }
 }
 
+const norm = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Dijagnostika: pronađi mailove po pojmu (naslov / pošiljatelj / primatelj) i reci što bi servis s njima napravio
+async function findIn(imap, folder, needle, days, ownNumbers, out) {
+  const lock = await imap.getMailboxLock(folder, { readOnly: true });
+  try {
+    const uids = await imap.search({ since: new Date(Date.now() - days * 864e5) }, { uid: true });
+    const hits = [];
+    for await (const e of imap.fetch(uids, { envelope: true, uid: true }, { uid: true })) {
+      const env = e.envelope || {};
+      const hay = norm(`${env.subject || ''} ${(env.from || []).map((a) => `${a.name || ''} ${a.address || ''}`).join(' ')} ${(env.to || []).map((a) => a.address).join(' ')}`);
+      if (hay.includes(needle)) hits.push(e.uid);
+    }
+    for (const uid of hits.slice(0, 8)) {
+      const full = await imap.fetchOne(String(uid), { source: true }, { uid: true });
+      const mail = await simpleParser(full.source);
+      const m = { from: mail.from?.value?.[0]?.address || '', replyTo: (mail.replyTo?.value || []).map((a) => a.address), subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `uid-${uid}` };
+      const r = parseMail(m, { ownNumbers });
+      out.push({
+        mapa: folder, datum: m.date ? m.date.toISOString().slice(0, 10) : '', od: m.from, naslov: m.subject.slice(0, 70),
+        rezultat: r.kind === 'lead' ? `BI SE UPISAO: ${r.lead.name} (${r.lead.source}, oglas ${r.lead.listingId || '-'})` : `${r.kind}${r.reason ? `: ${r.reason}` : ''}`,
+      });
+    }
+    return hits.length;
+  } finally { lock.release(); }
+}
+
 const need = ['MAIL_HOST', 'MAIL_USER', 'MAIL_PASS', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'CRON_SECRET'];
 
 export default async function handler(req, res) {
@@ -33,10 +60,11 @@ export default async function handler(req, res) {
   if (kind === 'publishable' || kind === 'anon') {
     return res.status(500).json({ error: `SUPABASE_SERVICE_KEY je javni ključ (${kind}). Treba tajni: "Secret key" (sb_secret_…) ili "service_role".` });
   }
-  const dry = req.query?.dry === '1';
-  const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
+  const find = norm(req.query?.find || '').trim();
+  const dry = req.query?.dry === '1' || !!find; // pretraga (find) nikad ne upisuje
+  const days = Number(req.query?.days || (find ? 60 : process.env.SYNC_DAYS || 3));
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const stats = { preview: [], folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
+  const stats = { found: [], preview: [], folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
   const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
   const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
@@ -65,6 +93,11 @@ export default async function handler(req, res) {
       ? wanted.filter((f) => boxes.some((b) => b.path === f))
       : boxes.filter((b) => /rije[sš]eno|upit|portal|njuskalo|kvadratko|automatsk/i.test(b.path.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && b.path.toUpperCase() !== 'INBOX').map((b) => b.path);
     stats.extraFolders = extra;
+    if (find) {
+      const names = ['INBOX', ...extra, ...boxes.filter((b) => /sent|archive|manje bitno/i.test(b.path)).map((b) => b.path)];
+      for (const f of [...new Set(names)]) await findIn(imap, f, find, days, ownNumbers, stats.found);
+      return res.status(200).json({ find, days, found: stats.found, folders: stats.folders });
+    }
     for (const folder of ['INBOX', ...extra]) {
     const lock = await imap.getMailboxLock(folder, { readOnly: true }); // samo čitanje: ništa se ne mijenja u sandučiću
     try {
