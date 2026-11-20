@@ -29,3 +29,6 @@ begin
     end if;
   end loop;
 end $$;
+
+-- Servis za čitanje maila (api/mail-sync.js) koristi tajni ključ (service_role) i treba pravo na tablice.
+grant all on all tables in schema public to service_role;

@@ -14,6 +14,13 @@ export const config = { maxDuration: 60 };
 // Adresa projekta smije imati višak na kraju (npr. /rest/v1/): uzima se samo https://nešto.supabase.co
 const supabaseOrigin = (u) => { try { return new URL(String(u).trim()).origin; } catch { return String(u).trim(); } };
 
+// Koja je vrsta ključa (bez otkrivanja ključa): publishable / secret / anon / service_role / nepoznato
+function keyKind(key = '') {
+  if (key.startsWith('sb_publishable_')) return 'publishable';
+  if (key.startsWith('sb_secret_')) return 'secret';
+  try { return JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString()).role || 'nepoznato'; } catch { return 'nepoznato'; }
+}
+
 const need = ['MAIL_HOST', 'MAIL_USER', 'MAIL_PASS', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'CRON_SECRET'];
 
 export default async function handler(req, res) {
@@ -22,6 +29,10 @@ export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET;
   if (req.headers.authorization !== `Bearer ${secret}` && req.query?.key !== secret) return res.status(401).json({ error: 'Neovlašteno' });
 
+  const kind = keyKind(process.env.SUPABASE_SERVICE_KEY);
+  if (kind === 'publishable' || kind === 'anon') {
+    return res.status(500).json({ error: `SUPABASE_SERVICE_KEY je javni ključ (${kind}). Treba tajni: "Secret key" (sb_secret_…) ili "service_role".` });
+  }
   const dry = req.query?.dry === '1';
   const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -30,7 +41,12 @@ export default async function handler(req, res) {
 
   const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
   const { data: rows, error } = await db.from('leads').select('data');
-  if (error) return res.status(500).json({ error: `Baza: ${error.message}` });
+  if (error) {
+    const hint = /permission denied/i.test(error.message)
+      ? ` (vrsta ključa: ${kind}). Ako je ključ tajni, u Supabase SQL Editoru pokrenite: grant all on all tables in schema public to service_role;`
+      : '';
+    return res.status(500).json({ error: `Baza: ${error.message}${hint}` });
+  }
   const leads = rows.map((r) => r.data);
   const changed = new Map();
 
