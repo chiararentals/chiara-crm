@@ -156,3 +156,15 @@ test('Tko je poslao: ime iz potpisa, inače zadano', () => {
   assert.equal(senderName('Poštovani,\njavljam se.\n\nLp,\nLea Test', 'Vanja'), 'Lea');
   assert.equal(senderName('Poštovani,\nSaljem ponudu, hvala.', 'Vanja'), 'Vanja');
 });
+
+test('Web obrazac s vlastite domene („X je poslao upit”) je upit; odgovor „Re:” nije', async () => {
+  const form = await read(eml({ From: 'Dux <info@dux-nekretnine.hr>', 'Reply-To': 'katica.test@example.com', Subject: 'DUX NEKRETNINE: Katica Test je poslao upit - OPATIJA, CENTAR - 45m2', Date: 'Wed, 18 Nov 2026 20:36:00 +0100', 'Message-ID': '<w1@x>' },
+    'Ime: Katica Test\nTelefon: 0911234567\nPoruka: Zanima me stan, mogu li ga pogledati?\nŠifra oglasa: 44123'));
+  const r = parseMail(form, { ownNumbers: OWN });
+  assert.equal(r.kind, 'lead');
+  assert.equal(r.lead.name, 'Katica Test');
+  assert.equal(r.lead.source, 'dux web');
+  assert.equal(r.lead.listingId, '44123');
+  const re = { ...form, subject: 'Re: ' + form.subject };
+  assert.equal(parseMail(re).kind, 'skip');
+});

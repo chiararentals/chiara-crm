@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const dry = req.query?.dry === '1';
   const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const stats = { fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
+  const stats = { ownSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
   const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
   const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
@@ -77,10 +77,14 @@ export default async function handler(req, res) {
                 lastComm: `${(m.date || new Date()).toISOString().slice(0, 10)} odgovor kupca: ${String(m.text || '').trim().slice(0, 200)}` };
               leads[leads.indexOf(cur)] = upd; changed.set(upd.id, upd); stats.replies++;
             }
-          } else stats.unknown.push({ from: m.from.split('@')[1] || '', subject: m.subject.slice(0, 80) });
+          } else if (stats.unknown.length < 40) stats.unknown.push({ from: m.from.split('@')[1] || '', subject: m.subject.slice(0, 80) });
           continue;
         }
-        if (r.kind === 'skip') { stats.skipped[r.reason] = (stats.skipped[r.reason] || 0) + 1; continue; }
+        if (r.kind === 'skip') {
+          stats.skipped[r.reason] = (stats.skipped[r.reason] || 0) + 1;
+          if (r.reason === 'vlastiti mail' && stats.ownSample.length < 12) stats.ownSample.push({ from: m.from, subject: m.subject.slice(0, 50) });
+          continue;
+        }
         const out = mergeLead(leads, r.lead, m.messageId);
         stats[out.action]++;
         if (out.action !== 'duplicate') {

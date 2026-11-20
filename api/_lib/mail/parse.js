@@ -186,14 +186,46 @@ function parseKvadratko(m, ownNumbers) {
   };
 }
 
+// ---------- Web obrazac Duxa ("X je poslao upit …") i "Novi kontakt za oglas N": šalju se i s vlastite domene ----------
+const REPLY_PREFIX = /^\s*(re|fwd?|odg|aw)\s*:/i;
+const isWebForm = (subject = '') => !REPLY_PREFIX.test(subject) && /\bje poslao(?:la)? upit\b/i.test(subject);
+const isNewContact = (subject = '') => !REPLY_PREFIX.test(subject) && /^\s*Novi kontakt za oglas\s*\d+/i.test(subject);
+
+function parseWebForm(m, ownNumbers) {
+  const subj = m.subject || '';
+  const body = m.text || '';
+  const email = (m.replyTo || []).find((a) => !isOwn(a)) || (body.match(EMAIL_RE) || []).find((a) => !isOwn(a) && !portalKey(a));
+  if (!email) return null;
+  const nameFromSubject = ((subj.match(/(?:DUX NEKRETNINE:\s*)?(.+?)\s+je poslao(?:la)? upit/i) || [])[1] || '').trim();
+  const title = (subj.match(/upit\s*[:-]\s*(.+)$/i) || [])[1] || '';
+  const id = (body.match(/(?:[sš]ifra|ID|oglas(?:a)?)\D{0,8}(\d{4,6})/i) || subj.match(/oglas\s*(\d{3,6})/i) || [])[1];
+  const lines = cleanLines(body).filter((l) => l && !GREETING.test(l));
+  const message = lines.slice(0, 15).join('\n');
+  const isRental = rental.test(title) || rental.test(message);
+  return {
+    rental: isRental,
+    lead: baseLead({
+      source: isNewContact(subj) ? 'ostalo' : 'dux web', email, name: nameFromSubject || nameFromSignature(message), message, listingId: id, subject: subj, date: m.date,
+      listingTitle: title, ownNumbers, isRental,
+    }),
+  };
+}
+
 const NOISE = /novi rezultati koji odgovaraju|spremljen(?:oj|a) pretra|unsubscribe od|odjava s liste|newsletter|automatski odgovor|out of office|delivery status/i;
 
 // Glavna funkcija. ownNumbers = telefoni agenata/tvrtke koji se ne smiju pročitati kao kupčevi.
 export function parseMail(m, { ownNumbers = [] } = {}) {
   const from = (m.from || '').toLowerCase();
-  if (isOwn(from)) return { kind: 'skip', reason: 'vlastiti mail' };
+  const formMail = isWebForm(m.subject) || isNewContact(m.subject);
+  if (isOwn(from) && !formMail) return { kind: 'skip', reason: 'vlastiti mail' };
   if (NOISE.test(`${m.subject} ${(m.text || '').slice(0, 600)}`)) return { kind: 'skip', reason: 'obavijest / newsletter' };
   const key = detectPortal(m);
+  if (!key && formMail) {
+    const w = parseWebForm(m, ownNumbers);
+    if (!w) return { kind: 'skip', reason: 'nema email adrese kupca' };
+    if (w.rental && process.env.SKIP_RENTALS === '1') return { kind: 'skip', reason: 'najam', lead: w.lead };
+    return { kind: 'lead', lead: w.lead };
+  }
   if (!key) return { kind: 'unknown', reason: 'pošiljatelj nije poznati portal' };
   const parsed = key === 'njuskalo.hr' ? parseNjuskalo(m, ownNumbers)
     : key === 'luxuryestate.com' ? parseLuxury(m, ownNumbers)
