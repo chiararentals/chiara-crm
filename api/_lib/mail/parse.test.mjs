@@ -168,3 +168,62 @@ test('Web obrazac s vlastite domene („X je poslao upit”) je upit; odgovor �
   const re = { ...form, subject: 'Re: ' + form.subject };
   assert.equal(parseMail(re).kind, 'skip');
 });
+
+const WEBFORM = `DUX Nekretnine d.o.o.
+Tizianova 8, 51000 Rijeka
+Tel: +385 51 518 174, Mob: +385 91 480 8808
+E-mail: info@dux-nekretnine.hr
+Ovo je email upit od IVO TESTIC (ivo.testic@example.com) vezano uz Vaš oglas.
+Za pregled kliknite na donju poveznicu:
+OPATIJA, MOŠĆENIČKA DRAGA – vila s bazenom (ID Kod: 32625)
+Kuća, Mošćenička Draga
+Cijena: na upit
+Podaci o korisniku su u nastavku:
+Ime: IVO
+Prezime: TESTIC
+E-mail: ivo.testic@example.com
+Telefon: 0994848848
+Poruka:
+Poštovani,
+trenutno sam u potrazi za zemljištem na području Mošćenica. Zanima me cijena?
+Hvala puno
+Ivo Testic
++385 99 4848 848`;
+
+test('Web obrazac (Ime/Prezime/E-mail/Telefon/Poruka): podaci kupca, ne tvrtke; ID iz naslova', async () => {
+  const r = parseMail({ from: 'info@dux-nekretnine.hr', replyTo: [], subject: 'IVO TESTIC je poslao upit: OPATIJA, MOŠĆENIČKA DRAGA – vila s bazenom (ID Kod: 32625)', text: WEBFORM, date: new Date(), messageId: '<w2@x>' }, { ownNumbers: [] });
+  assert.equal(r.kind, 'lead');
+  assert.equal(r.lead.name, 'Ivo Testic');
+  assert.equal(r.lead.email, 'ivo.testic@example.com');
+  assert.equal(r.lead.phone, '0994848848'); // ne +385 51 518 174 (tvrtka)
+  assert.equal(r.lead.listingId, '32625');
+  assert.equal(r.lead.source, 'dux web');
+  assert.match(r.lead.wants, /zemljištem/);
+});
+
+const NEKRETNINE = `Imate novu poruku
+Serena Test .
+Mi interessa questo immobile, vorrei avere maggiori informazioni. Quanto costa?
+Primljena poruka za oglas: 45670
+Stan na prodaju
+Kantrida, Rijeka
+€ 1
+131 m² | 4 sobe
+Profil klijenta
+IME
+Serena Test .
+E-MAIL
+serena.test@example.com
+TELEFON
++39 338 141 8166`;
+
+test('Nekretnine.hr („Novi kontakt za oglas N”): ime, email, telefon, ID, talijanski; cijena „€ 1” se ignorira', async () => {
+  const r = parseMail({ from: 'oglasi@nekretnine.hr', replyTo: ['serena.test@example.com'], subject: 'Novi kontakt za oglas 45670', text: NEKRETNINE, date: new Date(), messageId: '<n2@x>' });
+  assert.equal(r.kind, 'lead');
+  assert.equal(r.lead.source, 'nekretnine.hr');
+  assert.equal(r.lead.listingId, '45670');
+  assert.equal(r.lead.name, 'Serena Test');
+  assert.match(r.lead.phone, /338/);
+  assert.equal(r.lead.language, 'it');
+  assert.equal(r.lead.priceRange, '');
+});

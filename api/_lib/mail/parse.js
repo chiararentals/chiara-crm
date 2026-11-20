@@ -191,23 +191,59 @@ const REPLY_PREFIX = /^\s*(re|fwd?|odg|aw)\s*:/i;
 const isWebForm = (subject = '') => !REPLY_PREFIX.test(subject) && /\bje poslao(?:la)? upit\b/i.test(subject);
 const isNewContact = (subject = '') => !REPLY_PREFIX.test(subject) && /^\s*Novi kontakt za oglas\s*\d+/i.test(subject);
 
+const titleCase = (n) => (n && n === n.toUpperCase() ? n.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, p, c) => p + c.toUpperCase()) : n);
+
 function parseWebForm(m, ownNumbers) {
   const subj = m.subject || '';
-  const body = m.text || '';
-  const email = (m.replyTo || []).find((a) => !isOwn(a)) || (body.match(EMAIL_RE) || []).find((a) => !isOwn(a) && !portalKey(a));
-  if (!email) return null;
+  const lines = cleanLines(m.text).filter(Boolean);
+  // Polja korisnika su iza "Podaci o korisniku su u nastavku" (iznad su podaci tvrtke Dux)
+  const start = lines.findIndex((l) => /Podaci o korisniku/i.test(l));
+  const part = start >= 0 ? lines.slice(start + 1) : lines;
+  const first = labelValue(part, 'Ime');
+  const last = labelValue(part, 'Prezime');
   const nameFromSubject = ((subj.match(/(?:DUX NEKRETNINE:\s*)?(.+?)\s+je poslao(?:la)? upit/i) || [])[1] || '').trim();
-  const title = (subj.match(/upit\s*[:-]\s*(.+)$/i) || [])[1] || '';
-  const id = (body.match(/(?:[sš]ifra|ID|oglas(?:a)?)\D{0,8}(\d{4,6})/i) || subj.match(/oglas\s*(\d{3,6})/i) || [])[1];
-  const lines = cleanLines(body).filter((l) => l && !GREETING.test(l));
-  const message = lines.slice(0, 15).join('\n');
+  const name = titleCase([first, last].filter(Boolean).join(' ') || nameFromSubject);
+  const fromField = (labelValue(part, 'E-?mail').match(EMAIL_RE) || [])[0];
+  const email = (m.replyTo || []).find((a) => !isOwn(a)) || fromField || (m.text || '').match(EMAIL_RE)?.find((a) => !isOwn(a) && !portalKey(a));
+  if (!email || isOwn(email)) return null;
+  const mi = part.findIndex((l) => /^Poruka\b/i.test(l));
+  const message = (mi >= 0 ? part.slice(mi + 1) : part.filter((l) => !GREETING.test(l))).slice(0, 15).join('\n').replace(/^Poruka\s*:?\s*/i, '');
+  const title = (subj.match(/upit\s*[:-]\s*(.+?)(?:\s*\(ID[^)]*\))?\s*$/i) || [])[1] || '';
+  const id = (subj.match(/\bID\s*(?:kod)?\s*:?\s*(\d{3,7})/i) || subj.match(/oglas\s*(\d{3,7})/i) || (m.text || '').match(/(?:[SŠsš]ifra|\bID)\b[^\d\n]{0,14}(\d{3,7})/) || [])[1];
   const isRental = rental.test(title) || rental.test(message);
   return {
     rental: isRental,
-    lead: baseLead({
-      source: isNewContact(subj) ? 'ostalo' : 'dux web', email, name: nameFromSubject || nameFromSignature(message), message, listingId: id, subject: subj, date: m.date,
-      listingTitle: title, ownNumbers, isRental,
-    }),
+    lead: {
+      ...baseLead({
+        source: isNewContact(subj) ? 'ostalo' : 'dux web', email, name, message, listingId: id, subject: subj, date: m.date,
+        listingTitle: title, ownNumbers, isRental,
+      }),
+      phone: findPhone(labelValue(part, 'Telefon'), ownNumbers) || findPhone(message, ownNumbers),
+    },
+  };
+}
+
+// ---------- Nekretnine.hr ("Novi kontakt za oglas N") ----------
+function parseNekretnineHr(m, ownNumbers) {
+  const lines = cleanLines(m.text).filter(Boolean);
+  const email = (m.replyTo || []).find((a) => !isOwn(a) && !portalKey(a)) || (labelValue(lines, 'E-?MAIL').match(EMAIL_RE) || [])[0];
+  if (!email) return null;
+  const name = labelValue(lines, 'IME').replace(/[\s.]+$/, '') || '';
+  const bi = lines.findIndex((l) => /^Imate novu poruku/i.test(l));
+  const pi = lines.findIndex((l) => /^Primljena poruka za oglas/i.test(l));
+  // poruka: iza imena pošiljatelja (prvi redak nakon "Imate novu poruku"), do "Primljena poruka za oglas"
+  const message = lines.slice(bi >= 0 ? bi + 2 : 0, pi > 0 ? pi : undefined).join('\n');
+  const id = (m.subject.match(/oglas\s*(\d{3,7})/i) || (lines[pi] || '').match(/(\d{3,7})/) || [])[1];
+  const title = pi >= 0 ? lines[pi + 1] || '' : '';
+  const priceRaw = pi >= 0 ? lines.slice(pi + 1, pi + 6).find((l) => /€/.test(l)) : '';
+  const price = priceRaw && /\d{4,}|\d\.\d{3}/.test(priceRaw) ? priceRaw : '';
+  const isRental = rental.test(title) || rental.test(message);
+  return {
+    rental: isRental,
+    lead: {
+      ...baseLead({ source: 'nekretnine.hr', email, name, message, listingId: id, price, subject: m.subject, date: m.date, listingTitle: title, ownNumbers, isRental }),
+      phone: findPhone(labelValue(lines, 'TELEFON'), ownNumbers) || findPhone(message, ownNumbers),
+    },
   };
 }
 
@@ -231,6 +267,7 @@ export function parseMail(m, { ownNumbers = [] } = {}) {
     : key === 'luxuryestate.com' ? parseLuxury(m, ownNumbers)
     : key === 'indomio.hr' ? parseIndomio(m, ownNumbers)
     : key === 'kvadratko.hr' ? parseKvadratko(m, ownNumbers)
+    : key === 'nekretnine.hr' ? parseNekretnineHr(m, ownNumbers)
     : parseGeneric(m, PORTALS[key], ownNumbers);
   if (!parsed) return { kind: 'skip', reason: 'nema email adrese kupca' };
   // najam se uvozi (type = "najam"); preskače se samo ako je postavljeno SKIP_RENTALS=1
