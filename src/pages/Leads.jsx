@@ -106,10 +106,15 @@ function SuggestionCard({ lead }) {
   );
 }
 
-export default function Leads() {
+// mode: 'kupci' (kupci i ostali kontakti) | 'vlasnici' (vlasnici nekretnina, svoja stranica)
+export default function Leads({ mode = 'kupci' }) {
   const { leads: allLeads } = useData();
-  const leads = useMemo(() => allLeads.filter((l) => !isHidden(l)), [allLeads]);
-  const suggestions = allLeads.filter((l) => l.suggestion);
+  const owners = mode === 'vlasnici';
+  const leads = useMemo(
+    () => allLeads.filter((l) => !isHidden(l) && (owners ? leadKind(l) === 'vlasnik' : leadKind(l) !== 'vlasnik')),
+    [allLeads, owners]
+  );
+  const suggestions = owners ? [] : allLeads.filter((l) => l.suggestion);
   const [kind, setKind] = useState('');
   const [form, setForm] = useState(null);
   const [firm] = useFirm();
@@ -170,17 +175,17 @@ export default function Leads() {
 
   return (
     <>
-      <PageHeader title="Kupci i leadovi"
-        subtitle={`${leads.length} kontakata · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
+      <PageHeader title={owners ? 'Vlasnici' : 'Kupci i leadovi'}
+        subtitle={`${leads.length} ${owners ? 'vlasnika' : 'kontakata'} · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
         <div className="flex flex-wrap items-center gap-2">
-          <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
+          {!owners && <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
             <option value="dux">Uvoz u: Dux</option><option value="bonvia">Uvoz u: Bonvia</option><option value="chiara">Uvoz u: Chiara</option>
-          </select>
+          </select>}
           <button className="btn-outline" onClick={() => setShowCal(!showCal)}><CalendarDays size={16} /> Kalendar kontakata</button>
           <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
-          <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>
+          {!owners && <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>}
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
-          <button className="btn-primary" onClick={() => setForm({})}><Plus size={18} /> Novi kupac</button>
+          <button className="btn-primary" onClick={() => setForm(owners ? { kind: 'vlasnik' } : {})}><Plus size={18} /> {owners ? 'Novi vlasnik' : 'Novi kupac'}</button>
         </div>
       </PageHeader>
 
@@ -194,16 +199,18 @@ export default function Leads() {
       {showCal && <ContactsCalendar leads={leads} onOpenLead={setDetail} />}
 
       <div className="mb-3"><FirmFilter counts={counts} /></div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        {[['', 'Sve'], ...Object.entries(KINDS).map(([k, v]) => [k, k === 'kupac' ? 'Kupci' : k === 'vlasnik' ? 'Vlasnici' : v])].map(([k, label]) => {
-          const n = k ? leads.filter((l) => leadKind(l) === k).length : leads.length;
-          return (
-            <button key={k || 'sve'} onClick={() => setKind(k)} className={kind === k ? 'btn-primary !py-1.5' : 'btn-outline !py-1.5'}>
-              {label} <span className="rounded-full bg-black/10 px-1.5 text-xs">{n}</span>
-            </button>
-          );
-        })}
-      </div>
+      {!owners && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {[['', 'Svi'], ['kupac', 'Kupci'], ['ostalo', 'Ostalo']].map(([k, label]) => {
+            const n = k ? leads.filter((l) => leadKind(l) === k).length : leads.length;
+            return (
+              <button key={k || 'sve'} onClick={() => setKind(k)} className={kind === k ? 'btn-primary !py-1.5' : 'btn-outline !py-1.5'}>
+                {label} <span className="rounded-full bg-black/10 px-1.5 text-xs">{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {Object.entries(TEMPERATURES).map(([k, v]) => (
           <button key={k} onClick={() => setTemp(temp === k ? '' : k)} className={temp === k ? 'btn-primary' : 'btn-outline'}>{v.label}</button>
@@ -231,7 +238,7 @@ export default function Leads() {
           <div className="grid gap-3 md:grid-cols-2">{suggestions.map((l) => <SuggestionCard key={l.id} lead={l} />)}</div>
         </section>
       )}
-      {!filtered.length && <div className="card p-5 text-sm text-soft">Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.</div>}
+      {!filtered.length && <div className="card p-5 text-sm text-soft">{owners ? 'Još nema vlasnika. Dodajte ih gumbom „Novi vlasnik” ili iz prijedloga na stranici Kupci.' : 'Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.'}</div>}
       {SECTIONS.map(([st, title]) => {
         const list = st === 'review'
           ? filtered.filter((l) => l.review && followUpState(l) !== 'closed').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
@@ -255,7 +262,7 @@ export default function Leads() {
       {detail && <LeadDetail leadId={detail} onClose={() => setDetail(null)} />}
       {contact && <ContactDialog lead={contact} onClose={() => setContact(null)} />}
       {dataFor && <ContactDialog dataOnly lead={dataFor} onClose={() => setDataFor(null)} />}
-      {form && <LeadForm lead={form.id ? form : undefined} onClose={() => setForm(null)} />}
+      {form && <LeadForm lead={form.id ? form : undefined} defaults={form.id ? undefined : form} onClose={() => setForm(null)} />}
     </>
   );
 }

@@ -21,6 +21,7 @@ export default function App() {
           <Route index element={<Today />} />
           <Route path="boravci" element={<Stays />} />
           <Route path="kupci" element={<Leads />} />
+          <Route path="vlasnici" element={<Leads mode="vlasnici" />} />
           <Route path="pregled" element={<Overview />} />
           <Route path="arhiva" element={<Archive />} />
           <Route path="zadaci" element={<Todos />} />
