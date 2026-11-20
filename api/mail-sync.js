@@ -59,7 +59,12 @@ export default async function handler(req, res) {
     const boxes = await imap.list();
     stats.folders = boxes.map((b) => b.path).slice(0, 60); // popis mapa u sandučiću (da vidimo gdje leže upiti)
     // INBOX + mape iz MAIL_FOLDERS (npr. "INBOX.Upiti, INBOX.Portali"), samo ako postoje
-    const extra = (process.env.MAIL_FOLDERS || '').split(',').map((f) => f.trim()).filter((f) => f && boxes.some((b) => b.path === f));
+    // Ako MAIL_FOLDERS nije postavljen, automatski se čitaju i mape riješenih upita / portala (RIJEŠENO, Upiti, Portali…)
+    const wanted = (process.env.MAIL_FOLDERS || '').split(',').map((f) => f.trim()).filter(Boolean);
+    const extra = wanted.length
+      ? wanted.filter((f) => boxes.some((b) => b.path === f))
+      : boxes.filter((b) => /rije[sš]eno|upit|portal|njuskalo|kvadratko/i.test(b.path.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && b.path.toUpperCase() !== 'INBOX').map((b) => b.path);
+    stats.extraFolders = extra;
     for (const folder of ['INBOX', ...extra]) {
     const lock = await imap.getMailboxLock(folder, { readOnly: true }); // samo čitanje: ništa se ne mijenja u sandučiću
     try {
