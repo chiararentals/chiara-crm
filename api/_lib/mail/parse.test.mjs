@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { simpleParser } from 'mailparser';
 import { parseMail } from './parse.js';
 import { mergeLead } from './merge.js';
-import { applySent, cleanSentText } from './sent.js';
+import { applySent, cleanSentText, senderName } from './sent.js';
 
 const eml = (h, body) => `${Object.entries(h).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`;
 const read = async (raw) => {
@@ -149,4 +149,10 @@ test('Poslano: odgovor kupcu = odrađen kontakt (bez citirane povijesti), novi r
 
 test('cleanSentText reže citat', () => {
   assert.equal(cleanSentText('Bok\nlp\n> stari tekst'), 'Bok\nlp');
+});
+
+test('Tko je poslao: ime iz potpisa, inače zadano', () => {
+  assert.equal(senderName('Poštovani,\njavljam se.\n\nSrdačan pozdrav,\nMarko', 'Vanja'), 'Marko');
+  assert.equal(senderName('Poštovani,\njavljam se.\n\nLp,\nLea Test', 'Vanja'), 'Lea');
+  assert.equal(senderName('Poštovani,\nSaljem ponudu, hvala.', 'Vanja'), 'Vanja');
 });

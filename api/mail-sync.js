@@ -1,5 +1,5 @@
 // Čita Duxov sandučić (IMAP, samo čitanje) i upite kupaca upisuje u CRM (Supabase).
-// Pokreće ga Vercel Cron (vercel.json) ili ručno: GET /api/mail-sync?dry=1  (dry=1 = ništa ne upisuje)
+// Pokreće ga Vercel Cron (vercel.json) ili ručno: GET /api/mail-sync?key=<CRON_SECRET>&dry=1  (dry=1 = ništa ne upisuje)
 // Postavke (Vercel → Settings → Environment Variables): MAIL_HOST, MAIL_PORT, MAIL_USER, MAIL_PASS,
 // SUPABASE_URL, SUPABASE_SERVICE_KEY, CRON_SECRET, a po želji OWN_PHONES (zarezom), OWN_MAIL_DOMAIN, SYNC_DAYS.
 import { ImapFlow } from 'imapflow';
@@ -16,13 +16,14 @@ const need = ['MAIL_HOST', 'MAIL_USER', 'MAIL_PASS', 'SUPABASE_URL', 'SUPABASE_S
 export default async function handler(req, res) {
   const missing = need.filter((k) => !process.env[k]);
   if (missing.length) return res.status(500).json({ error: `Nedostaju postavke: ${missing.join(', ')}` });
-  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: 'Neovlašteno' });
+  const secret = process.env.CRON_SECRET;
+  if (req.headers.authorization !== `Bearer ${secret}` && req.query?.key !== secret) return res.status(401).json({ error: 'Neovlašteno' });
 
   const dry = req.query?.dry === '1';
   const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
   const stats = { fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
-  const sentBy = process.env.SENT_AS_NAME || 'Marko';
+  const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
   const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
   const { data: rows, error } = await db.from('leads').select('data');

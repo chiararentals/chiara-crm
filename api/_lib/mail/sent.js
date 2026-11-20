@@ -19,8 +19,20 @@ export function cleanSentText(text) {
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// Tko je poslao: ako je u potpisu (zadnjih nekoliko redaka) ime nekog iz tima, to je on/ona; inače zadano ime
+const TEAM = (process.env.TEAM_NAMES || 'Marko,Lea,Vanja').split(',').map((n) => n.trim()).filter(Boolean);
+export function senderName(text, fallback) {
+  const tail = cleanSentText(text).split('\n').map((l) => l.trim()).filter(Boolean).slice(-4);
+  for (const line of tail.reverse()) {
+    const hit = TEAM.find((n) => new RegExp(`(^|[\\s,.-])${n}($|[\\s,.!-])`, 'i').test(line) && line.split(/\s+/).length <= 4);
+    if (hit) return hit;
+  }
+  return fallback;
+}
+
 // Vraća izmijenjene kupce (nove objekte). sent = { to[], cc[], subject, text, date, messageId }
-export function applySent(leads, sent, { by = 'Marko', now = new Date() } = {}) {
+export function applySent(leads, sent, { by = 'Vanja', now = new Date() } = {}) {
+  by = senderName(sent.text, by);
   const day = zagrebDay(sent.date || now);
   const text = cleanSentText(sent.text).slice(0, 400);
   if (!text) return [];
