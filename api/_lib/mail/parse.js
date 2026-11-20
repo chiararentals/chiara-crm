@@ -31,6 +31,8 @@ export function portalKey(fromAddr) {
 export function detectPortal(m) {
   const key = portalKey((m.from || '').toLowerCase());
   if (key) return key;
+  // odgovor kupca ("Re: …") često citira originalni mail portala; to nije novi upit
+  if (/^\s*(re|odg|aw)\s*:/i.test(m.subject || '')) return null;
   const txt = `${m.subject}\n${m.text || ''}`;
   if (/Klijent je zainteresiran za Vašu nekretninu/i.test(txt) || /indomio/i.test(m.from || '')) return 'indomio.hr';
   if (/Imate novu poruku/i.test(txt) && /Primljena poruka za oglas/i.test(txt)) return 'nekretnine.hr';

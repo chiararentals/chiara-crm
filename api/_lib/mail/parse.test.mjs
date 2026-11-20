@@ -238,3 +238,8 @@ test('Reklama portala nije upit; proslijeđeni upit („Fwd:”) kolege s naše 
   assert.equal(rf.lead.email, 'serena.test@example.com');
   assert.equal(rf.lead.listingId, '45670');
 });
+
+test('Odgovor kupca („Re:”) koji citira mail portala nije novi upit', async () => {
+  const reply = { from: 'kupac.test@gmail.com', replyTo: [], subject: 'Re: Novi kontakt za oglas 45670', text: 'Hvala, dolazim u petak.\n\n' + NEKRETNINE, date: new Date(), messageId: '<r9@x>' };
+  assert.equal(parseMail(reply).kind, 'unknown');
+});

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const dry = req.query?.dry === '1';
   const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const stats = { folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
+  const stats = { preview: [], folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
   const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
   const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
@@ -101,6 +101,10 @@ export default async function handler(req, res) {
         }
         const out = mergeLead(leads, r.lead, m.messageId);
         stats[out.action]++;
+        if (out.action !== 'duplicate' && stats.preview.length < 15) {
+          const l = out.lead;
+          stats.preview.push({ akcija: out.action, ime: l.name, email: l.email, izvor: l.source, oglas: l.listingId, temp: l.temperature, tip: l.type || '', telefon: l.phone ? 'da' : 'ne', jezik: l.language });
+        }
         if (out.action !== 'duplicate') {
           changed.set(out.lead.id, out.lead);
           const i = leads.findIndex((l) => l.id === out.lead.id);
