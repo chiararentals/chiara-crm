@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const dry = req.query?.dry === '1';
   const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const stats = { ownSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
+  const stats = { folders: [], fetchedBy: {}, ownSample: [], noEmailSample: [], fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
   const sentBy = process.env.SENT_AS_NAME || 'Vanja'; // ime kad se u potpisu ne prepozna nitko iz tima
 
   const db = createClient(supabaseOrigin(process.env.SUPABASE_URL), process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
@@ -56,12 +56,18 @@ export default async function handler(req, res) {
   });
   try {
     await imap.connect();
-    const lock = await imap.getMailboxLock('INBOX', { readOnly: true }); // samo čitanje: ništa se ne mijenja u sandučiću
+    const boxes = await imap.list();
+    stats.folders = boxes.map((b) => b.path).slice(0, 60); // popis mapa u sandučiću (da vidimo gdje leže upiti)
+    // INBOX + mape iz MAIL_FOLDERS (npr. "INBOX.Upiti, INBOX.Portali"), samo ako postoje
+    const extra = (process.env.MAIL_FOLDERS || '').split(',').map((f) => f.trim()).filter((f) => f && boxes.some((b) => b.path === f));
+    for (const folder of ['INBOX', ...extra]) {
+    const lock = await imap.getMailboxLock(folder, { readOnly: true }); // samo čitanje: ništa se ne mijenja u sandučiću
     try {
       const since = new Date(Date.now() - days * 864e5);
       const uids = await imap.search({ since }, { uid: true });
       for await (const msg of imap.fetch(uids, { source: true, uid: true }, { uid: true })) {
         stats.fetched++;
+        stats.fetchedBy[folder] = (stats.fetchedBy[folder] || 0) + 1;
         const mail = await simpleParser(msg.source);
         const m = {
           from: mail.from?.value?.[0]?.address || '', replyTo: (mail.replyTo?.value || []).map((a) => a.address),
@@ -83,6 +89,9 @@ export default async function handler(req, res) {
         if (r.kind === 'skip') {
           stats.skipped[r.reason] = (stats.skipped[r.reason] || 0) + 1;
           if (r.reason === 'vlastiti mail' && stats.ownSample.length < 12) stats.ownSample.push({ from: m.from, subject: m.subject.slice(0, 50) });
+          if (r.reason === 'nema email adrese kupca' && stats.noEmailSample.length < 8) {
+            stats.noEmailSample.push({ from: m.from, subject: m.subject.slice(0, 60), textLen: (m.text || '').length, replyTo: m.replyTo.length, emailsInText: ((m.text || '').match(/[\w.+-]+@[\w.-]+\.\w+/g) || []).length });
+          }
           continue;
         }
         const out = mergeLead(leads, r.lead, m.messageId);
@@ -94,9 +103,9 @@ export default async function handler(req, res) {
         }
       }
     } finally { lock.release(); }
+    }
 
     // Poslano: što smo odgovorili kupcima (bilježi se kao odrađen kontakt)
-    const boxes = await imap.list();
     const sentBox = boxes.find((b) => b.specialUse === '\\Sent') || boxes.find((b) => /^(inbox\.)?sent( items| mail)?$/i.test(b.path));
     if (sentBox) {
       const lock2 = await imap.getMailboxLock(sentBox.path, { readOnly: true });
