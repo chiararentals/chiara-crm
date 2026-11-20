@@ -194,13 +194,20 @@ export default function Leads() {
       {showCal && <ContactsCalendar leads={leads} onOpenLead={setDetail} />}
 
       <div className="mb-3"><FirmFilter counts={counts} /></div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        {[['', 'Sve'], ...Object.entries(KINDS).map(([k, v]) => [k, k === 'kupac' ? 'Kupci' : k === 'vlasnik' ? 'Vlasnici' : v])].map(([k, label]) => {
+          const n = k ? leads.filter((l) => leadKind(l) === k).length : leads.length;
+          return (
+            <button key={k || 'sve'} onClick={() => setKind(k)} className={kind === k ? 'btn-primary !py-1.5' : 'btn-outline !py-1.5'}>
+              {label} <span className="rounded-full bg-black/10 px-1.5 text-xs">{n}</span>
+            </button>
+          );
+        })}
+      </div>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {Object.entries(TEMPERATURES).map(([k, v]) => (
           <button key={k} onClick={() => setTemp(temp === k ? '' : k)} className={temp === k ? 'btn-primary' : 'btn-outline'}>{v.label}</button>
         ))}
-        <select className="field !w-auto !py-2 text-sm" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Vrsta">
-          <option value="">Sve vrste</option>{Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
         <select className="field !w-auto !py-2 text-sm" value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Voditelj">
           <option value="">Svi voditelji</option>{TEAM.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
