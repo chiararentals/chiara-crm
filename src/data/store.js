@@ -240,7 +240,7 @@ export const actions = {
   updateLeadFacts(leadId, form) {
     const lead = state.leads.find((l) => l.id === leadId);
     if (!lead) return;
-    const patch = { viewings: syncViewings(lead, { viewedIds: form.viewedIds || [], chosenIds: form.chosenIds }) };
+    const patch = { viewings: syncViewings(lead, { viewedIds: form.viewedIds || [], chosenIds: form.chosenIds }), factsPending: false };
     if (form.sentText) patch.lastSent = form.sentText;
     if (form.arrival === 'date') { patch.arrivalDate = form.arrivalDate; patch.arrivalNote = ''; }
     if (form.arrival === 'unknown') { patch.arrivalDate = null; patch.arrivalNote = form.arrivalNote || ''; }
@@ -265,7 +265,7 @@ export const actions = {
         contacts: [...(lead.contacts || []), contact],
         viewings, viewedManual: Number(form.viewedManual) || 0,
         lastSent: form.sentText, arrivalDate: contact.arrivalDate, arrivalNote: contact.arrivalNote,
-        lastContact: today(), followUpDate: form.nextDate || null,
+        lastContact: today(), followUpDate: form.nextDate || null, factsPending: false,
       }),
     });
   },

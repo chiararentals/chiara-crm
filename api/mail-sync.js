@@ -7,6 +7,7 @@ import { simpleParser } from 'mailparser';
 import { createClient } from '@supabase/supabase-js';
 import { parseMail } from './_lib/mail/parse.js';
 import { mergeLead } from './_lib/mail/merge.js';
+import { applySent } from './_lib/mail/sent.js';
 
 export const config = { maxDuration: 60 };
 
@@ -20,7 +21,8 @@ export default async function handler(req, res) {
   const dry = req.query?.dry === '1';
   const days = Number(req.query?.days || process.env.SYNC_DAYS || 3);
   const ownNumbers = (process.env.OWN_PHONES || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const stats = { fetched: 0, created: 0, updated: 0, duplicate: 0, skipped: {}, unknown: [], dry };
+  const stats = { fetched: 0, created: 0, updated: 0, duplicate: 0, replies: 0, sentLogged: 0, skipped: {}, unknown: [], dry };
+  const sentBy = process.env.SENT_AS_NAME || 'Marko';
 
   const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
   const { data: rows, error } = await db.from('leads').select('data');
@@ -46,7 +48,18 @@ export default async function handler(req, res) {
           to: (mail.to?.value || []).map((a) => a.address), subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `uid-${msg.uid}`,
         };
         const r = parseMail(m, { ownNumbers });
-        if (r.kind === 'unknown') { stats.unknown.push({ from: m.from.split('@')[1] || '', subject: m.subject.slice(0, 80) }); continue; }
+        if (r.kind === 'unknown') {
+          // kupac odgovara iz svog maila: osvježi zadnju komunikaciju
+          const cur = leads.find((l) => l.email && l.email.toLowerCase() === m.from.toLowerCase());
+          if (cur) {
+            if (!(cur.mailIds || []).includes(m.messageId)) {
+              const upd = { ...cur, mailIds: [...(cur.mailIds || []), m.messageId].slice(-50), lastWrote: 'kupac',
+                lastComm: `${(m.date || new Date()).toISOString().slice(0, 10)} odgovor kupca: ${String(m.text || '').trim().slice(0, 200)}` };
+              leads[leads.indexOf(cur)] = upd; changed.set(upd.id, upd); stats.replies++;
+            }
+          } else stats.unknown.push({ from: m.from.split('@')[1] || '', subject: m.subject.slice(0, 80) });
+          continue;
+        }
         if (r.kind === 'skip') { stats.skipped[r.reason] = (stats.skipped[r.reason] || 0) + 1; continue; }
         const out = mergeLead(leads, r.lead, m.messageId);
         stats[out.action]++;
@@ -57,6 +70,24 @@ export default async function handler(req, res) {
         }
       }
     } finally { lock.release(); }
+
+    // Poslano: što smo odgovorili kupcima (bilježi se kao odrađen kontakt)
+    const boxes = await imap.list();
+    const sentBox = boxes.find((b) => b.specialUse === '\\Sent') || boxes.find((b) => /^(inbox\.)?sent( items| mail)?$/i.test(b.path));
+    if (sentBox) {
+      const lock2 = await imap.getMailboxLock(sentBox.path, { readOnly: true });
+      try {
+        const uids = await imap.search({ since: new Date(Date.now() - days * 864e5) }, { uid: true });
+        for await (const msg of imap.fetch(uids, { source: true, uid: true }, { uid: true })) {
+          const mail = await simpleParser(msg.source);
+          const out = applySent(leads, {
+            to: (mail.to?.value || []).map((a) => a.address), cc: (mail.cc?.value || []).map((a) => a.address),
+            subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `sent-uid-${msg.uid}`,
+          }, { by: sentBy });
+          for (const l of out) { changed.set(l.id, l); stats.sentLogged++; }
+        }
+      } finally { lock2.release(); }
+    } else stats.skipped['mapa Poslano nije pronađena'] = 1;
   } catch (e) {
     return res.status(502).json({ error: `Mail server: ${e.message}`, stats });
   } finally { await imap.logout().catch(() => {}); }

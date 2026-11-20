@@ -30,6 +30,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
             <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span>
             <span className={`badge ${state === 'late' ? 'bg-red-100 text-red-700' : state === 'today' ? 'bg-gold/50 text-navy' : 'bg-black/5 text-soft'}`}>{dateBadge}</span>
             {lead.review && <span className="badge bg-gold text-navy">Novo – provjeri</span>}
+            {lead.factsPending && <span className="badge bg-navy/10 text-navy">Dopuni podatke</span>}
             <span className="text-[11px] text-mute">{leadOwner(lead)}</span>
           </div>
           {lead.wants && <div className="mt-1 line-clamp-2 text-xs text-soft">{lead.wants}</div>}

@@ -7,9 +7,16 @@ Servis `api/mail-sync.js` svako jutro (05:00 UTC) pročita **samo čitanjem** (I
 |---|---|
 | Njuškalo (`noreply@njuskalo.hr`) | email kupca (Reply-To), interna šifra = ID oglasa, cijena, tekst upita, telefon i ime iz teksta ako postoje |
 | LuxuryEstate (`noreply@luxuryestate.com`) | ID, email, ime, tekst, jezik |
-| nekretnine.hr, Indomio, Nekretnine Kvarner | općeniti čitač (email, šifra, tekst) – dok ne vidimo stvarne primjere |
+| Indomio („Klijent je zainteresiran za Vašu nekretninu!”) | naš ID (#…), naziv i cijena oglasa, ime, telefon, email, poruka |
+| Kvadratko („Novi upit kupca za vaš oglas”) | poruka, naziv oglasa, šifra objekta, ime, email, telefon (ako je upisan) |
+| nekretnine.hr, Nekretnine Kvarner, web obrazac | općeniti čitač (email, šifra, tekst) – dok ne vidimo stvarne primjere |
 
-Preskače se: **najam** (osim ako `INCLUDE_RENTALS=1`), obavijesti „Novi rezultati koji odgovaraju vašoj pretrazi”, vlastiti mailovi, nepoznati pošiljatelji. Kupac koji već postoji (isti email, pa telefon) se **osvježi** (zadnja komunikacija, novi ID oglasa), a njegov rok follow-upa i sve što je upisano u CRM ostaje.
+Izvor se prepoznaje po pošiljatelju, a ako on nije poznat, po tipičnom tekstu maila.
+
+**Najam se uvozi** (kupac dobiva tip „najam”; preskače se samo ako postavite `SKIP_RENTALS=1`). Preskače se: obavijesti „Novi rezultati koji odgovaraju vašoj pretrazi”, vlastiti mailovi, nepoznati pošiljatelji. Kupac koji već postoji (isti email, pa telefon) se **osvježi** (zadnja komunikacija, novi ID oglasa), a njegov rok follow-upa i sve što je upisano u CRM ostaje.
+
+## Poslani mailovi = odrađen follow-up
+Servis čita i mapu **Poslano**. Ako je mail poslan kupcu koji je u CRM-u (isti email), upisuje se kontakt: tko (`SENT_AS_NAME`, zadano Marko), kada, što je napisano (bez citirane povijesti), a rok sljedećeg follow-upa se računa od dana slanja (vruć +4, topao +7). Kupac dobiva oznaku **„Dopuni podatke”**, jer ostala tri odgovora (kad dolazi, koliko je pogledao, izabrane nekretnine) mail sam ne sadrži; upisuju se kroz „Samo upiši podatke”. Odgovori kupaca iz njihovih mailova osvježavaju „zadnju komunikaciju”.
 
 ## Postavke (Vercel → projekt → Settings → Environment Variables)
 | Ime | Vrijednost |
@@ -21,6 +28,7 @@ Preskače se: **najam** (osim ako `INCLUDE_RENTALS=1`), obavijesti „Novi rezul
 | `SUPABASE_URL` | adresa projekta (Supabase → Project Settings → API) |
 | `SUPABASE_SERVICE_KEY` | **service_role** ključ (isto mjesto; tajan, samo u Vercelu) |
 | `CRON_SECRET` | bilo koja duga nasumična riječ (štiti adresu servisa) |
+| `SENT_AS_NAME` | (po želji) čije se ime bilježi uz poslane mailove, zadano `Marko` |
 | `OWN_PHONES` | (po želji) telefoni agenata i tvrtke, odvojeni zarezom, da se ne pročitaju kao kupčevi |
 
 Nakon unosa: **Deployments → Redeploy**.

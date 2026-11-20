@@ -11,6 +11,7 @@ const PORTALS = {
   'nekretnine.hr': 'nekretnine.hr',
   'indomio.hr': 'indomio',
   'nekretnine-kvarner.hr': 'nekretnine kvarner',
+  'kvadratko.hr': 'kvadratko',
 };
 const LANG = { hrv: 'hr', srp: 'hr', bos: 'hr', eng: 'en', deu: 'de', ita: 'it', slv: 'sl' };
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
@@ -25,6 +26,15 @@ const cleanLines = (t) => String(t || '').replace(/\r/g, '').split('\n').map((l)
 export function portalKey(fromAddr) {
   const d = domainOf(fromAddr);
   return Object.keys(PORTALS).find((p) => d === p || d.endsWith(`.${p}`)) || null;
+}
+// Prepoznavanje izvora: prvo po pošiljatelju, a ako ga nema, po tipičnom tekstu maila
+export function detectPortal(m) {
+  const key = portalKey((m.from || '').toLowerCase());
+  if (key) return key;
+  const txt = `${m.subject}\n${m.text || ''}`;
+  if (/Klijent je zainteresiran za Vašu nekretninu/i.test(txt) || /indomio/i.test(m.from || '')) return 'indomio.hr';
+  if (/Novi upit kupca za va[sš] oglas/i.test(txt) || /kvadratko/i.test(`${m.from} ${txt.slice(-500)}`)) return 'kvadratko.hr';
+  return null;
 }
 export const portalOf = (fromAddr) => PORTALS[portalKey(fromAddr)] || null;
 
@@ -47,7 +57,7 @@ function detectLanguage(text, fallback = 'hr') {
 }
 
 const hot = /razgled|pogledat|vidjeti stan|vidjeti kuću|termin|besichtig|viewing|visita|visit /i;
-const rental = /najam|za rent|\brent\b|affitto|miete/i;
+const rental = /najam|za rent|\brent\b|affitto|miete|\bmonatlich/i;
 const GREETING = /^(po[sš]tovani|po[sš]tovanje|dobar dan|hello|dear|buongiorno|guten tag|hi|pozdrav)\b/i;
 const CLOSING = /^(lp|l\.p\.|lijep pozdrav|srda[cč]an pozdrav|pozdrav|hvala|thanks|regards|kind regards|best regards|cordiali saluti|grazie|mfg|--)\b/i;
 
@@ -60,7 +70,7 @@ function nameFromSignature(message) {
   return cand || '';
 }
 
-function baseLead({ source, email, name, message, listingId, price, subject, date, listingTitle, ownNumbers }) {
+function baseLead({ source, email, name, message, listingId, price, subject, date, listingTitle, ownNumbers, isRental }) {
   const phone = findPhone(message, ownNumbers);
   const text = message.trim();
   const temperature = hot.test(text) ? 'vruc' : 'topao';
@@ -68,7 +78,7 @@ function baseLead({ source, email, name, message, listingId, price, subject, dat
     firm: 'dux', temperature, name: name || (email || '').split('@')[0], email: email || '', phone,
     language: detectLanguage(text), source, listingId: listingId || '', priceRange: price || '',
     wants: text.slice(0, 400), lastComm: `${(date || new Date()).toISOString().slice(0, 10)} upit (${source}): ${text.slice(0, 200)}`,
-    status: 'otvoren', listingTitle: listingTitle || subject || '', review: true, owner: 'Vanja',
+    status: 'otvoren', type: isRental ? 'najam' : '', listingTitle: listingTitle || subject || '', review: true, owner: 'Vanja',
     firstContact: (date || new Date()).toISOString().slice(0, 10),
   };
 }
@@ -88,7 +98,7 @@ function parseNjuskalo(m, ownNumbers) {
     rental: rental.test(title) || rental.test(message) || /EUR\s*\/\s*mj|mjese/i.test(price || ''),
     lead: baseLead({
       source: 'njuškalo', email, name: nameFromSignature(message) || username, message, listingId: id, price, subject: m.subject,
-      date: m.date, listingTitle: title, ownNumbers,
+      date: m.date, listingTitle: title, ownNumbers, isRental: rental.test(title) || rental.test(message) || /EUR\s*\/\s*mj|mjese/i.test(price || ''),
     }),
   };
 }
@@ -107,7 +117,7 @@ function parseLuxury(m, ownNumbers) {
   const name = /^[\p{L}][\p{L} .'-]{1,40}$/u.test(afterEmail || '') && !CLOSING.test(afterEmail) ? afterEmail : '';
   return {
     rental: rental.test(message),
-    lead: baseLead({ source: 'luxuryestate', email, name, message, listingId: id, subject: m.subject, date: m.date, ownNumbers }),
+    lead: baseLead({ source: 'luxuryestate', email, name, message, listingId: id, subject: m.subject, date: m.date, ownNumbers, isRental: rental.test(message) }),
   };
 }
 
@@ -118,7 +128,62 @@ function parseGeneric(m, source, ownNumbers) {
   if (!email) return null;
   const id = (body.match(/(?:[sš]ifra|ID|ref\.?|oglas(?:a)?)\D{0,6}(\d{4,6})/i) || m.subject.match(/\b(\d{4,6})\b/) || [])[1];
   const message = cleanLines(body).filter((l) => l && !GREETING.test(l)).slice(0, 12).join('\n');
-  return { rental: rental.test(m.subject) || rental.test(message), lead: baseLead({ source, email, name: nameFromSignature(message), message, listingId: id, subject: m.subject, date: m.date, ownNumbers }) };
+  return { rental: rental.test(m.subject) || rental.test(message), lead: baseLead({ source, email, name: nameFromSignature(message), message, listingId: id, subject: m.subject, date: m.date, ownNumbers, isRental: rental.test(m.subject) || rental.test(message) }) };
+}
+
+const labelValue = (lines, label) => {
+  const re = new RegExp(`^${label}\\b\\s*:?\\s*`, 'i');
+  const i = lines.findIndex((l) => re.test(l));
+  if (i < 0) return '';
+  return lines[i].replace(re, '').trim() || lines[i + 1] || '';
+};
+
+// ---------- Indomio ("Klijent je zainteresiran za Vašu nekretninu!") ----------
+function parseIndomio(m, ownNumbers) {
+  const lines = cleanLines(m.text).filter(Boolean);
+  const idIdx = lines.findIndex((l) => /^#\d{3,7}\b/.test(l));
+  const emailIdx = lines.findIndex((l) => (l.match(EMAIL_RE) || []).some((a) => !isOwn(a) && !portalKey(a)));
+  if (emailIdx < 0) return null;
+  const email = lines[emailIdx].match(EMAIL_RE).find((a) => !isOwn(a) && !portalKey(a));
+  const hasPhone = emailIdx > 0 && findPhone(lines[emailIdx - 1], ownNumbers);
+  const name = lines[hasPhone ? emailIdx - 2 : emailIdx - 1] || '';
+  const stop = lines.findIndex((l, i) => i > emailIdx && /^(Tel:|Odgovorite putem|Pogledajte upit)/i.test(l));
+  const message = lines.slice(emailIdx + 1, stop > 0 ? stop : undefined).join('\n');
+  const head = lines.slice(Math.max(idIdx, 0), Math.max(idIdx, 0) + 6).join(' ');
+  const title = idIdx >= 0 ? lines[idIdx + 1] || '' : '';
+  return {
+    rental: rental.test(title) || rental.test(message),
+    lead: {
+      ...baseLead({
+        source: 'indomio', email, name: /^[\p{L}][\p{L} .'-]{1,40}$/u.test(name) ? name : '', message, listingId: idIdx >= 0 ? lines[idIdx].match(/\d+/)[0] : '',
+        price: (head.match(/€\s*[\d.,]+|[\d.,]+\s*(?:€|EUR)/) || [])[0], subject: m.subject, date: m.date, listingTitle: title, ownNumbers, isRental: rental.test(title) || rental.test(message),
+      }),
+      phone: hasPhone || findPhone(message, ownNumbers),
+    },
+  };
+}
+
+// ---------- Kvadratko ("Novi upit kupca za vaš oglas") ----------
+function parseKvadratko(m, ownNumbers) {
+  const lines = cleanLines(m.text).filter(Boolean);
+  const from = lines.findIndex((l) => /^Poruka kupca/i.test(l));
+  const to = lines.findIndex((l, i) => i > from && /^(Oglas|[SŠ]ifra objekta)\b/i.test(l));
+  const message = lines.slice(from + 1, to > from ? to : undefined).join('\n');
+  const email = (labelValue(lines, 'E-?mail').match(EMAIL_RE) || [])[0] || (m.replyTo || []).find((a) => !isOwn(a));
+  if (!email) return null;
+  const title = labelValue(lines, 'Oglas');
+  const phoneRaw = labelValue(lines, 'Telefon');
+  const isRental = rental.test(title) || rental.test(message);
+  return {
+    rental: isRental,
+    lead: {
+      ...baseLead({
+        source: 'kvadratko', email, name: labelValue(lines, 'Ime'), message, listingId: (labelValue(lines, '[SŠ]ifra objekta').match(/\d+/) || [])[0], subject: m.subject, date: m.date,
+        listingTitle: title, ownNumbers, isRental,
+      }),
+      phone: findPhone(phoneRaw, ownNumbers) || findPhone(message, ownNumbers),
+    },
+  };
 }
 
 const NOISE = /novi rezultati koji odgovaraju|spremljen(?:oj|a) pretra|unsubscribe od|odjava s liste|newsletter|automatski odgovor|out of office|delivery status/i;
@@ -128,10 +193,15 @@ export function parseMail(m, { ownNumbers = [] } = {}) {
   const from = (m.from || '').toLowerCase();
   if (isOwn(from)) return { kind: 'skip', reason: 'vlastiti mail' };
   if (NOISE.test(`${m.subject} ${(m.text || '').slice(0, 600)}`)) return { kind: 'skip', reason: 'obavijest / newsletter' };
-  const key = portalKey(from);
+  const key = detectPortal(m);
   if (!key) return { kind: 'unknown', reason: 'pošiljatelj nije poznati portal' };
-  const parsed = key === 'njuskalo.hr' ? parseNjuskalo(m, ownNumbers) : key === 'luxuryestate.com' ? parseLuxury(m, ownNumbers) : parseGeneric(m, PORTALS[key], ownNumbers);
+  const parsed = key === 'njuskalo.hr' ? parseNjuskalo(m, ownNumbers)
+    : key === 'luxuryestate.com' ? parseLuxury(m, ownNumbers)
+    : key === 'indomio.hr' ? parseIndomio(m, ownNumbers)
+    : key === 'kvadratko.hr' ? parseKvadratko(m, ownNumbers)
+    : parseGeneric(m, PORTALS[key], ownNumbers);
   if (!parsed) return { kind: 'skip', reason: 'nema email adrese kupca' };
-  if (parsed.rental && process.env.INCLUDE_RENTALS !== '1') return { kind: 'skip', reason: 'najam', lead: parsed.lead };
+  // najam se uvozi (type = "najam"); preskače se samo ako je postavljeno SKIP_RENTALS=1
+  if (parsed.rental && process.env.SKIP_RENTALS === '1') return { kind: 'skip', reason: 'najam', lead: parsed.lead };
   return { kind: 'lead', lead: parsed.lead };
 }
