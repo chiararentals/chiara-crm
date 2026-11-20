@@ -16,21 +16,28 @@ const personal = (addr) => { const d = domainOf(addr); return PERSONAL.has(d) ||
 const titleFromEmail = (a) => a.split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, '').trim();
 
 // Je li ova adresa smislena za prijedlog?
-export function worthSuggesting(addr, subject = '') {
+// Nazivi koji upućuju na tvrtku/ured, a ne na osobu
+const BUSINESS_NAME = /d\.?\s?o\.?\s?o|j\.?d\.?o\.?o|\bobrt\b|projekt|gradnj|gra[dđ]evin|\bgik\b|in[zž]enjering|arhitekt|agencij|nekretnin|\bured\b|\bltd\b|\bgmbh\b|\bsrl\b|\bsp\.? z/i;
+
+export function worthSuggesting(addr, subject = '', name = '') {
+  if (BUSINESS_NAME.test(name) || BUSINESS_NAME.test(addr.split('@')[0])) return false;
   if (!addr || isOwn(addr) || portalKey(addr)) return false;
   if (AUTO_LOCAL.test(addr.split('@')[0])) return false;
   if (!personal(addr)) return process.env.SUGGEST_ALL === '1';
   return !NOISE.test(subject);
 }
 
+// "Re: Barbra Rudmann je poslao upit: …" -> "Barbra Rudmann"
+const nameFromSubject = (subject = '') => ((subject.match(/(?:DUX NEKRETNINE:\s*)?(?:(?:re|fwd?|odg)\s*:\s*)*(.+?)\s+je poslao(?:la)? upit/i) || [])[1] || '').trim();
+
 // Vraća novi zapis (prijedlog) ili null ako već postoji kupac s tom adresom ili nije smislen
 export function makeSuggestion(leads, { address, name, subject, text, messageId, date }, now = new Date()) {
   const email = String(address || '').toLowerCase();
-  if (!worthSuggesting(email, subject)) return null;
+  if (!worthSuggesting(email, subject, name)) return null;
   if (leads.some((l) => l.email && l.email.toLowerCase() === email)) return null;
   const day = zagrebDay(date || now);
   return {
-    id: crypto.randomUUID(), firm: 'dux', suggestion: true, kind: 'ostalo', name: (name || '').trim() || titleFromEmail(email) || email, email,
+    id: crypto.randomUUID(), firm: 'dux', suggestion: true, kind: 'ostalo', name: (name || '').trim() || nameFromSubject(subject) || titleFromEmail(email) || email, email,
     language: detectLanguage(text || '', ''), source: 'mail', suggestSubject: String(subject || '').slice(0, 90), suggestedAt: day,
     temperature: 'topao', status: 'otvoren', notes: '', phone: '', mailIds: messageId ? [messageId] : [], createdAt: (date || now).toISOString(),
   };

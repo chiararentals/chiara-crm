@@ -22,6 +22,12 @@ function keyKind(key = '') {
   try { return JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString()).role || 'nepoznato'; } catch { return 'nepoznato'; }
 }
 
+// Jedan loš mail (bez sadržaja, pokvaren, premješten tijekom čitanja) ne smije srušiti cijelo pokretanje
+async function safeParse(source, stats) {
+  if (!source) { stats.skipped['mail bez sadržaja'] = (stats.skipped['mail bez sadržaja'] || 0) + 1; return null; }
+  try { return await simpleParser(source); } catch { stats.skipped['mail se ne može pročitati'] = (stats.skipped['mail se ne može pročitati'] || 0) + 1; return null; }
+}
+
 const norm = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 // Dijagnostika: pronađi mailove po pojmu (naslov / pošiljatelj / primatelj) i reci što bi servis s njima napravio
@@ -37,7 +43,8 @@ async function findIn(imap, folder, needle, days, ownNumbers, out) {
     }
     for (const uid of hits.slice(0, 8)) {
       const full = await imap.fetchOne(String(uid), { source: true }, { uid: true });
-      const mail = await simpleParser(full.source);
+      const mail = await simpleParser(full.source).catch(() => null);
+      if (!mail) continue;
       const m = { from: mail.from?.value?.[0]?.address || '', fromName: mail.from?.value?.[0]?.name || '', replyTo: (mail.replyTo?.value || []).map((a) => a.address), subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `uid-${uid}` };
       const r = parseMail(m, { ownNumbers });
       out.push({
@@ -115,7 +122,8 @@ export default async function handler(req, res) {
       for await (const msg of imap.fetch(uids, { source: true, uid: true }, { uid: true })) {
         stats.fetched++;
         stats.fetchedBy[folder] = (stats.fetchedBy[folder] || 0) + 1;
-        const mail = await simpleParser(msg.source);
+        const mail = await safeParse(msg.source, stats);
+        if (!mail) continue;
         const m = {
           from: mail.from?.value?.[0]?.address || '', replyTo: (mail.replyTo?.value || []).map((a) => a.address),
           to: (mail.to?.value || []).map((a) => a.address), subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `uid-${msg.uid}`,
@@ -166,7 +174,8 @@ export default async function handler(req, res) {
       try {
         const uids = await imap.search({ since: new Date(Date.now() - days * 864e5) }, { uid: true });
         for await (const msg of imap.fetch(uids, { source: true, uid: true }, { uid: true })) {
-          const mail = await simpleParser(msg.source);
+          const mail = await safeParse(msg.source, stats);
+          if (!mail) continue;
           const out = applySent(leads, {
             to: (mail.to?.value || []).map((a) => a.address), cc: (mail.cc?.value || []).map((a) => a.address),
             subject: mail.subject || '', text: mail.text || '', date: mail.date, messageId: mail.messageId || `sent-uid-${msg.uid}`,

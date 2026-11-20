@@ -267,3 +267,10 @@ test('Prijedlozi: privatna adresa koje nema u CRM-u da; poslovna, noreply, posto
   assert.equal(worthSuggesting('kolega@dux-nekretnine.hr'), false);
   assert.equal(worthSuggesting('netko@gmail.com', 'Black Friday newsletter'), false);
 });
+
+test('Prijedlozi: tvrtke se ne predlažu, ime iz naslova upita kad nema imena u zaglavlju', () => {
+  assert.equal(worthSuggesting('mladjenovic.projekti@gmail.com', 'Re: predugovor', 'Mladjenovic projekti'), false);
+  assert.equal(worthSuggesting('profectus.obrt@gmail.com', 'Re: ponuda'), false);
+  const s = makeSuggestion([], { address: 'rudmannb03@gmail.com', name: '', subject: 'Re: Barbra Rudmann je poslao upit: OPATIJA, ICICI', text: 'Hvala', messageId: '<q@x>' });
+  assert.equal(s.name, 'Barbra Rudmann');
+});
