@@ -205,6 +205,7 @@ export const actions = {
     return id;
   },
   updateLead(id, patch) { commit({ ...state, leads: patchList(state.leads, id, patch) }); },
+  deleteLeads(ids) { const set = new Set(ids); commit({ ...state, leads: state.leads.filter((l) => !set.has(l.id)) }); },
   deleteLead(id) { commit({ ...state, leads: state.leads.filter((l) => l.id !== id) }); },
   // Uvoz iz tablice: isti email (u istoj firmi) = ažuriranje, inače novi kupac.
   // - prazna polja iz tablice ne brišu ono što je upisano u CRM-u
@@ -213,12 +214,13 @@ export const actions = {
   // - zatvoreni (kupio / odustao) se ne dodaju kao novi; postojećima se samo promijeni status
   importLeads(list) {
     let added = 0, updated = 0, closed = 0;
+    const batch = now(); // oznaka ovog uvoza: svaki kupac koji je u tablici dobije je (za čišćenje starih)
     const leads = [...state.leads];
     for (const item of list) {
       const i = leads.findIndex((l) => sameLead(l, item));
       if (i >= 0) {
         const cur = leads[i];
-        const patch = {};
+        const patch = { importId: batch };
         for (const [k, v] of Object.entries(item)) if (v !== '' && v != null) patch[k] = v;
         if (cur.contacts?.length) { delete patch.followUpDate; delete patch.lastContact; }
         leads[i] = { ...cur, ...patch, id: cur.id };
@@ -226,12 +228,12 @@ export const actions = {
       } else if (isClosed(item)) {
         closed++;
       } else {
-        leads.push({ notes: '', ...item, followUpDate: item.followUpDate || suggestDate(item.temperature), id: uid(), createdAt: now() });
+        leads.push({ notes: '', ...item, importId: batch, followUpDate: item.followUpDate || suggestDate(item.temperature), id: uid(), createdAt: now() });
         added++;
       }
     }
     commit({ ...state, leads });
-    return { added, updated, closed };
+    return { added, updated, closed, batch };
   },
   // Jednokratno: svi kupci kojima je rok prošao dobiju novi rok (vruć +4, topao +7)
   resetLateFollowUps() {

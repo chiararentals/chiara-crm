@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Upload, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye, ClipboardEdit } from 'lucide-react';
+import { Plus, Trash2, Upload, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye, ClipboardEdit } from 'lucide-react';
 import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
 import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
@@ -9,6 +9,7 @@ import LeadFacts from '../components/LeadFacts';
 import LeadDetail from '../components/LeadDetail';
 import ContactDialog from '../components/ContactDialog';
 import ContactsCalendar from '../components/ContactsCalendar';
+import CleanupDialog from '../components/CleanupDialog';
 import { exportLeads } from '../lib/exportLeads';
 import { TEMPERATURES, KINDS, followUpState, parseExcel, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
 import { fmtShort, today, plusDays } from '../lib/dates';
@@ -139,6 +140,7 @@ export default function Leads({ mode = 'kupci' }) {
   const [dataFor, setDataFor] = useState(null);
   const [showCal, setShowCal] = useState(false);
   const [owner, setOwner] = useState('');
+  const [cleanup, setCleanup] = useState(false);
   const fileRef = useRef(null);
 
   const filtered = useMemo(() => {
@@ -192,6 +194,7 @@ export default function Leads({ mode = 'kupci' }) {
           <button className="btn-outline" onClick={() => setShowCal(!showCal)}><CalendarDays size={16} /> Kalendar kontakata</button>
           <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
           {!owners && <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>}
+          {!owners && <button className="btn-outline" onClick={() => setCleanup(true)}><Trash2 size={16} /> Očisti stare</button>}
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
           <button className="btn-primary" onClick={() => setForm(owners ? { kind: MODE_KIND[mode] } : {})}><Plus size={18} /> {text.add}</button>
         </div>
@@ -267,6 +270,7 @@ export default function Leads({ mode = 'kupci' }) {
         );
       })}
 
+      {cleanup && <CleanupDialog leads={leads} onClose={() => setCleanup(false)} onDone={setMsg} />}
       {detail && <LeadDetail leadId={detail} onClose={() => setDetail(null)} />}
       {contact && <ContactDialog lead={contact} onClose={() => setContact(null)} />}
       {dataFor && <ContactDialog dataOnly lead={dataFor} onClose={() => setDataFor(null)} />}

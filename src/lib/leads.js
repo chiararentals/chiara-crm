@@ -120,3 +120,15 @@ export const sameLead = (a, b) => {
   if (digits(a.phone).length >= 8 && digits(b.phone).length >= 8) return digits(a.phone) === digits(b.phone);
   return !a.email && !b.email && a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
 };
+
+// Čišćenje starog uvoza: kupci koji su u CRM stigli prije `cutoff`, NISU u zadnjem uvozu tablice
+// i u CRM-u nemaju nikakvu aktivnost (kontakti, nekretnine, mailovi, upisani podaci, bilješke).
+export function staleImportCandidates(leads, cutoff) {
+  const latest = leads.map((l) => l.importId).filter(Boolean).sort().pop() || null;
+  if (!latest) return { latest: null, list: [] };
+  const untouched = (l) => !(l.contacts?.length || l.viewings?.length || l.mailIds?.length || l.viewedManual || l.lastSent || l.arrivalDate || l.arrivalNote || l.notes || l.review || l.suggestion || l.propertyName || l.contractSigned);
+  const list = leads.filter((l) =>
+    !isHidden(l) && ['kupac', 'najmoprimac'].includes(leadKind(l)) &&
+    l.createdAt && l.createdAt.slice(0, 10) < cutoff && l.importId !== latest && untouched(l));
+  return { latest, list };
+}
