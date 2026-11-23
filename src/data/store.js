@@ -223,12 +223,13 @@ export const actions = {
   // - novi kupac bez važećeg roka dobiva prijedlog (vruć +4 dana, topao +7)
   // - zatvoreni (kupio / odustao) se ne dodaju kao novi; postojećima se samo promijeni status
   importLeads(list) {
-    let added = 0, updated = 0, closed = 0;
+    let added = 0, updated = 0, closed = 0, skipped = 0;
     let cold = 0; // brojač hladnih bez roka (za raspoređivanje)
     const batch = now(); // oznaka ovog uvoza: svaki kupac koji je u tablici dobije je (za čišćenje starih)
     const leads = [...state.leads];
     for (const item of list) {
       const i = leads.findIndex((l) => sameLead(l, item));
+      if (i >= 0 && item.channel === 'whatsapp' && (leads[i].removed || leads[i].waMoved)) { skipped++; continue; }
       if (i >= 0) {
         const cur = leads[i];
         const patch = { importId: batch, suggestion: false, ignored: false };
@@ -244,7 +245,7 @@ export const actions = {
       }
     }
     commit({ ...state, leads });
-    return { added, updated, closed, batch };
+    return { added, updated, closed, skipped, batch };
   },
   // Jednokratno: svi kupci kojima je rok prošao dobiju novi rok (vruć +4, topao +7)
   resetLateFollowUps() {
@@ -257,6 +258,17 @@ export const actions = {
     if (n) commit({ ...state, leads });
     return n;
   },
+  // WhatsApp kupci koji prelaze na Markov broj: izlaze s popisa WhatsApp, ostaju u CRM-u kao Markovi (a uvoz ih više ne vraća)
+  moveToMarko(ids) {
+    const set = new Set(ids);
+    commit({ ...state, leads: state.leads.map((l) => (set.has(l.id) ? { ...l, owner: 'Marko', channel: null, waMoved: true, movedAt: now() } : l)) });
+  },
+  // Trajno ukloni (sakrije); uvoz ih ne vraća
+  removeLeads(ids) {
+    const set = new Set(ids);
+    commit({ ...state, leads: state.leads.map((l) => (set.has(l.id) ? { ...l, removed: true, removedAt: now() } : l)) });
+  },
+
   // Brza kvačica "javila sam se": zapiše kontakt (tko/kada, neobavezna napomena), pomakne rok (vruć +4, topao +7), čeka-odgovor se gasi.
   quickContact(leadId, by, note = '') {
     const lead = state.leads.find((l) => l.id === leadId);

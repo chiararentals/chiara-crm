@@ -15,7 +15,7 @@ export const KINDS = { kupac: 'Kupac', vlasnik: 'Vlasnik', najmoprimac: 'Najmopr
 // Kupci uvezeni iz tablice s tipom „… (najam)” prikazuju se kao najmoprimci
 export const leadKind = (l) => l.kind || (/najam/i.test(l.type || '') ? 'najmoprimac' : 'kupac');
 // Prijedlozi iz maila i ignorirani se ne pokazuju u običnim popisima
-export const isHidden = (l) => !!(l.suggestion || l.ignored);
+export const isHidden = (l) => !!(l.suggestion || l.ignored || l.removed);
 // Ugovor o posredovanju: istekao / ističe u idućih 30 dana
 export function contractState(l) {
   if (!l.contractUntil) return null;

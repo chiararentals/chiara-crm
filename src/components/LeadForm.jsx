@@ -23,7 +23,12 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
     if (editing) actions.updateLead(lead.id, data); else actions.addLead(data);
     onClose();
   };
-  const remove = () => { if (confirm(`Obrisati "${lead.name}"?`)) { actions.deleteLead(lead.id); onClose(); } };
+  const remove = () => {
+    if (!confirm(`Obrisati "${lead.name}"?`)) return;
+    if (lead.channel === 'whatsapp') actions.removeLeads([lead.id]); // ostaje skriven da ga ponovni uvoz tablice ne vrati
+    else actions.deleteLead(lead.id);
+    onClose();
+  };
 
   return (
     <Modal title={editing ? 'Uredi kupca' : 'Novi kupac / lead'} onClose={onClose}>

@@ -10,6 +10,7 @@ import LeadDetail from '../components/LeadDetail';
 import ContactDialog from '../components/ContactDialog';
 import ContactsCalendar from '../components/ContactsCalendar';
 import CleanupDialog from '../components/CleanupDialog';
+import WaBulkDialog from '../components/WaBulkDialog';
 import { exportLeads } from '../lib/exportLeads';
 import { TEMPERATURES, KINDS, contactDay, WA_LABELS, isWhatsApp, waLinkText, parseWhatsAppExcel, followUpState, parseExcelAll, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
 import { fmtShort, today, plusDays } from '../lib/dates';
@@ -91,6 +92,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-mist pt-3">
         {lead.review && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.updateLead(lead.id, { review: false })}><Check size={14} /> Podaci su točni</button>}
         <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => onContact(lead)}><Check size={14} /> Follow-up odrađen</button>
+        {isWa && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => confirm(`Prebaciti „${lead.name}” Marku? Nestaje s popisa WhatsApp, a ostaje u CRM-u kao Markov kupac.`) && actions.moveToMarko([lead.id])}>Prebaci Marku</button>}
         {isWa && wa && <a className="btn-outline !px-3 !py-1.5 text-xs" href={waLinkText(lead.phone, lead.suggestedMessage)} target="_blank" rel="noreferrer"><MessageSquareText size={14} /> WhatsApp{lead.suggestedMessage ? ' s porukom' : ''}</a>}
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onDetail(lead.id)}><Eye size={14} /> Detalji i povijest</button>
         {leadKind(lead) === 'kupac' && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onData(lead)}><ClipboardEdit size={14} /> Samo upiši podatke</button>}
@@ -180,6 +182,7 @@ export default function Leads({ mode = 'kupci' }) {
   const [showCal, setShowCal] = useState(false);
   const [owner, setOwner] = useState('');
   const [cleanup, setCleanup] = useState(false);
+  const [bulk, setBulk] = useState(false);
   const fileRef = useRef(null);
 
   const filtered = useMemo(() => {
@@ -244,6 +247,7 @@ export default function Leads({ mode = 'kupci' }) {
           <button className="btn-outline" onClick={() => setShowCal(!showCal)}><CalendarDays size={16} /> Kalendar kontakata</button>
           <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
           {!owners && <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>}
+          {wa && <button className="btn-outline" onClick={() => setBulk(true)}><Trash2 size={16} /> Makni kupce</button>}
           {(mode === 'kupci' || mode === 'najmoprimci') && <button className="btn-outline" onClick={() => setCleanup(true)}><Trash2 size={16} /> Očisti stare</button>}
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
           <button className="btn-primary" onClick={() => setForm(owners ? { kind: MODE_KIND[mode] } : wa ? { channel: 'whatsapp' } : {})}><Plus size={18} /> {text.add}</button>
@@ -327,6 +331,7 @@ export default function Leads({ mode = 'kupci' }) {
         );
       })}
 
+      {bulk && <WaBulkDialog leads={leads} onClose={() => setBulk(false)} onDone={setMsg} />}
       {cleanup && <CleanupDialog leads={allLeads.filter((l) => !isHidden(l))} onClose={() => setCleanup(false)} onDone={setMsg} />}
       {detail && <LeadDetail leadId={detail} onClose={() => setDetail(null)} />}
       {contact && <ContactDialog lead={contact} onClose={() => setContact(null)} />}
