@@ -26,6 +26,7 @@ export default function App() {
           <Route path="vlasnici" element={<Leads mode="vlasnici" />} />
           <Route path="content" element={<Content />} />
           <Route path="vile" element={<Villas />} />
+          <Route path="whatsapp" element={<Leads mode="whatsapp" />} />
           <Route path="najmoprimci" element={<Leads mode="najmoprimci" />} />
           <Route path="pregled" element={<Overview />} />
           <Route path="arhiva" element={<Archive />} />

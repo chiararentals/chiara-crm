@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Upload, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye, ClipboardEdit } from 'lucide-react';
+import { Plus, Trash2, Upload, MessageSquareText, Download, CalendarDays, Phone, Mail, MessageCircle, Pencil, Check, ChevronDown, Eye, ClipboardEdit } from 'lucide-react';
 import { actions, useData } from '../data';
 import PageHeader from '../components/PageHeader';
 import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
@@ -11,25 +11,56 @@ import ContactDialog from '../components/ContactDialog';
 import ContactsCalendar from '../components/ContactsCalendar';
 import CleanupDialog from '../components/CleanupDialog';
 import { exportLeads } from '../lib/exportLeads';
-import { TEMPERATURES, KINDS, followUpState, parseExcelAll, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
+import { TEMPERATURES, KINDS, contactDay, WA_LABELS, isWhatsApp, waLinkText, parseWhatsAppExcel, followUpState, parseExcelAll, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
 import { fmtShort, today, plusDays } from '../lib/dates';
+import { format } from 'date-fns';
+import { useMe } from '../lib/me';
 import { TEAM } from '../seed';
+
+// Kvačica „javila sam se” za WhatsApp kupce: jedan klik zapiše kontakt i pomakne rok; napomena je neobavezna
+function WaTick({ lead, doneToday, last }) {
+  const [me] = useMe();
+  const [note, setNote] = useState('');
+  if (doneToday) {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 p-2.5 text-sm">
+        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-emerald-600 text-white"><Check size={15} strokeWidth={3} /></span>
+        <span className="min-w-0 flex-1 text-emerald-900"><b>Javljeno</b> · {last.by} {format(new Date(last.at), 'HH:mm')}{last.sentText ? ` · ${last.sentText}` : ''}</span>
+        <button className="text-xs text-emerald-800 underline" onClick={() => actions.undoQuickContact(lead.id)}>Poništi</button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <button aria-label="Javila sam se" onClick={() => { actions.quickContact(lead.id, me, note); setNote(''); }}
+        className="group flex h-7 w-7 flex-none items-center justify-center rounded-full border-2 border-soft/60 bg-white hover:border-emerald-600">
+        <Check size={16} strokeWidth={3} className="text-emerald-600 opacity-0 group-hover:opacity-60" />
+      </button>
+      <input className="field !py-1.5 text-xs" placeholder="Javila sam se… (što je poslano, neobavezno)" value={note} onChange={(e) => setNote(e.target.value)} />
+    </div>
+  );
+}
 
 function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
   const [open, setOpen] = useState(false);
   const state = followUpState(lead);
   const wa = waLink(lead.phone);
+  const isWa = isWhatsApp(lead);
+  const lastQuick = (lead.contacts || []).filter((c) => c.quick).pop();
+  const doneToday = isWa && !!lastQuick && contactDay(lastQuick) === today();
   const dateBadge = lead.followUpDate
     ? `${state === 'late' ? 'Kasni · ' : ''}${fmtShort(lead.followUpDate)}`
     : 'Bez datuma';
   return (
-    <div className="rounded-xl border border-black/5 p-3.5 shadow-card" style={firmCardStyle(lead.firm)}>
+    <div className={`rounded-xl border border-black/5 p-3.5 shadow-card ${doneToday ? 'opacity-60' : ''}`} style={firmCardStyle(lead.firm)}>
       <button className="flex w-full items-start gap-2 text-left" onClick={() => setOpen(!open)}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm font-semibold">{lead.name}</span>
             <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span>
             <span className={`badge ${state === 'late' ? 'bg-red-100 text-red-700' : state === 'today' ? 'bg-gold/50 text-navy' : 'bg-black/5 text-soft'}`}>{dateBadge}</span>
+            {isWa && lead.waLabel && <span className="badge bg-emerald-100 text-emerald-900">{WA_LABELS[lead.waLabel] || lead.waLabel}</span>}
+            {isWa && lead.lastWrote === 'kupac' && !doneToday && <span className="badge bg-gold text-navy">Čeka odgovor</span>}
             {lead.review && <span className="badge bg-gold text-navy">Novo – provjeri</span>}
             {lead.factsPending && <span className="badge bg-navy/10 text-navy">Dopuni podatke</span>}
             {leadKind(lead) !== 'kupac' && <span className="badge bg-navy text-white">{KINDS[leadKind(lead)]}</span>}
@@ -43,6 +74,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
         <ChevronDown size={18} className={`mt-1 flex-none text-mute transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <LeadFacts lead={lead} />
+      {isWa && <WaTick lead={lead} doneToday={doneToday} last={lastQuick} />}
 
       {open && (
         <div className="mt-3 space-y-2 border-t border-mist pt-3 text-xs text-soft">
@@ -59,6 +91,7 @@ function LeadCard({ lead, onEdit, onDetail, onContact, onData }) {
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-mist pt-3">
         {lead.review && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.updateLead(lead.id, { review: false })}><Check size={14} /> Podaci su točni</button>}
         <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => onContact(lead)}><Check size={14} /> Follow-up odrađen</button>
+        {isWa && wa && <a className="btn-outline !px-3 !py-1.5 text-xs" href={waLinkText(lead.phone, lead.suggestedMessage)} target="_blank" rel="noreferrer"><MessageSquareText size={14} /> WhatsApp{lead.suggestedMessage ? ' s porukom' : ''}</a>}
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onDetail(lead.id)}><Eye size={14} /> Detalji i povijest</button>
         {leadKind(lead) === 'kupac' && <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => onData(lead)}><ClipboardEdit size={14} /> Samo upiši podatke</button>}
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={onEdit}><Pencil size={14} /> Uredi</button>
@@ -114,16 +147,22 @@ const MODE_TEXT = {
   kupci: { title: 'Kupci i leadovi', noun: 'kontakata', add: 'Novi kupac' },
   vlasnici: { title: 'Vlasnici', noun: 'vlasnika', add: 'Novi vlasnik', empty: 'Još nema vlasnika. Dodajte ih gumbom „Novi vlasnik” ili iz prijedloga na stranici Kupci.' },
   najmoprimci: { title: 'Najmoprimci', noun: 'najmoprimaca', add: 'Novi najmoprimac', empty: 'Još nema najmoprimaca. Dodajte ih gumbom „Novi najmoprimac” ili iz prijedloga na stranici Kupci.' },
+  whatsapp: { title: 'WhatsApp', noun: 'kupaca', add: 'Novi WhatsApp kupac', empty: 'Još nema WhatsApp kupaca. Dodajte ih gumbom „Novi WhatsApp kupac” ili uvezite pročišćenu tablicu.' },
 };
 export default function Leads({ mode = 'kupci' }) {
   const { leads: allLeads } = useData();
-  const owners = mode !== 'kupci'; // posebne stranice (vlasnici, najmoprimci)
+  const wa = mode === 'whatsapp';
+  const owners = mode === 'vlasnici' || mode === 'najmoprimci'; // posebne stranice (vlasnici, najmoprimci)
+  const [waLabel, setWaLabel] = useState('');
   const text = MODE_TEXT[mode];
   const leads = useMemo(
-    () => allLeads.filter((l) => !isHidden(l) && (owners ? leadKind(l) === MODE_KIND[mode] : !['vlasnik', 'najmoprimac'].includes(leadKind(l)))),
-    [allLeads, owners, mode]
+    () => allLeads.filter((l) => !isHidden(l) && (
+      wa ? isWhatsApp(l)
+        : owners ? leadKind(l) === MODE_KIND[mode] && !isWhatsApp(l)
+        : !['vlasnik', 'najmoprimac'].includes(leadKind(l)) && !isWhatsApp(l))),
+    [allLeads, owners, wa, mode]
   );
-  const suggestions = owners ? [] : allLeads.filter((l) => l.suggestion);
+  const suggestions = owners || wa ? [] : allLeads.filter((l) => l.suggestion);
   const [kind, setKind] = useState('');
   const [form, setForm] = useState(null);
   const [firm] = useFirm();
@@ -148,12 +187,13 @@ export default function Leads({ mode = 'kupci' }) {
     return leads
       .filter((l) => !firm || l.firm === firm)
       .filter((l) => !kind || leadKind(l) === kind)
+      .filter((l) => !waLabel || l.waLabel === waLabel)
       .filter((l) => !temp || l.temperature === temp)
       .filter((l) => !owner || leadOwner(l) === owner)
       .filter((l) => inRange(l, range, from, to))
       .filter((l) => !needle || [l.name, l.email, l.phone, l.wants, l.location].some((v) => (v || '').toLowerCase().includes(needle)))
       .sort((a, b) => (a.followUpDate || '9999').localeCompare(b.followUpDate || '9999') || (a.temperature === 'vruc' ? -1 : 1));
-  }, [leads, firm, kind, temp, owner, q, range, from, to]);
+  }, [leads, firm, kind, waLabel, temp, owner, q, range, from, to]);
   const counts = Object.fromEntries(['chiara', 'bonvia', 'dux'].map((k) => [k, leads.filter((l) => l.firm === k).length]));
   const lateCount = lateLeads(leads).length;
   const todayCount = leads.filter((l) => followUpState(l) === 'today').length;
@@ -164,6 +204,14 @@ export default function Leads({ mode = 'kupci' }) {
     e.target.value = '';
     if (!file) return;
     try {
+      if (wa) {
+        const list = await parseWhatsAppExcel(file, importFirm);
+        if (!list.length) { setMsg('U tablici nema vrućih ni toplih WhatsApp kupaca.'); return; }
+        if (!confirm(`Uvesti ${list.length} WhatsApp kupaca (vrući i topli)?\n\nKupci koji već postoje (isti email, pa telefon, pa ime) bit će ažurirani i prebačeni u WhatsApp kao glavni kontakt; ono što ste upisali u CRM (kontakti, rokovi nakon kontakta) ostaje. Stari rokovi iz tablice se preskaču.`)) return;
+        const r = actions.importLeads(list);
+        setMsg(`Uvezeno: ${r.added} novih, ${r.updated} ažuriranih.`);
+        return;
+      }
       const { list, sheets, ignored } = await parseExcelAll(file, importFirm);
       const open = list.filter((l) => !/^zatvoren/i.test(l.status || ''));
       if (!list.length) { setMsg('U tablici nema prepoznatih listova s kupcima, najmoprimcima ili prodavateljima.'); return; }
@@ -189,15 +237,15 @@ export default function Leads({ mode = 'kupci' }) {
       <PageHeader title={text.title}
         subtitle={`${leads.length} ${text.noun} · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
         <div className="flex flex-wrap items-center gap-2">
-          {!owners && <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
+          {(!owners) && <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
             <option value="dux">Uvoz u: Dux</option><option value="bonvia">Uvoz u: Bonvia</option><option value="chiara">Uvoz u: Chiara</option>
           </select>}
           <button className="btn-outline" onClick={() => setShowCal(!showCal)}><CalendarDays size={16} /> Kalendar kontakata</button>
           <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
           {!owners && <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>}
-          {mode !== 'vlasnici' && <button className="btn-outline" onClick={() => setCleanup(true)}><Trash2 size={16} /> Očisti stare</button>}
+          {(mode === 'kupci' || mode === 'najmoprimci') && <button className="btn-outline" onClick={() => setCleanup(true)}><Trash2 size={16} /> Očisti stare</button>}
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
-          <button className="btn-primary" onClick={() => setForm(owners ? { kind: MODE_KIND[mode] } : {})}><Plus size={18} /> {text.add}</button>
+          <button className="btn-primary" onClick={() => setForm(owners ? { kind: MODE_KIND[mode] } : wa ? { channel: 'whatsapp' } : {})}><Plus size={18} /> {text.add}</button>
         </div>
       </PageHeader>
 
@@ -211,7 +259,14 @@ export default function Leads({ mode = 'kupci' }) {
       {showCal && <ContactsCalendar leads={leads} onOpenLead={setDetail} />}
 
       <div className="mb-3"><FirmFilter counts={counts} /></div>
-      {!owners && (
+      {wa && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {[['', 'Sve oznake'], ...Object.entries(WA_LABELS)].map(([k, label]) => (
+            <button key={k || 'sve'} onClick={() => setWaLabel(k)} className={waLabel === k ? 'btn-primary !py-1.5' : 'btn-outline !py-1.5'}>{label}</button>
+          ))}
+        </div>
+      )}
+      {!owners && !wa && (
         <div className="mb-3 flex flex-wrap gap-2">
           {[['', 'Svi'], ['kupac', 'Kupci'], ['ostalo', 'Ostalo']].map(([k, label]) => {
             const n = k ? leads.filter((l) => leadKind(l) === k).length : leads.length;
@@ -250,7 +305,7 @@ export default function Leads({ mode = 'kupci' }) {
           <div className="grid gap-3 md:grid-cols-2">{suggestions.map((l) => <SuggestionCard key={l.id} lead={l} />)}</div>
         </section>
       )}
-      {!filtered.length && <div className="card p-5 text-sm text-soft">{owners ? text.empty : 'Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.'}</div>}
+      {!filtered.length && <div className="card p-5 text-sm text-soft">{owners || wa ? text.empty : 'Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.'}</div>}
       {SECTIONS.map(([st, title]) => {
         const list = st === 'review'
           ? filtered.filter((l) => l.review && followUpState(l) !== 'closed').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))

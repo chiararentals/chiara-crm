@@ -247,6 +247,38 @@ export const actions = {
     if (n) commit({ ...state, leads });
     return n;
   },
+  // Brza kvačica "javila sam se": zapiše kontakt (tko/kada, neobavezna napomena), pomakne rok (vruć +4, topao +7), čeka-odgovor se gasi.
+  quickContact(leadId, by, note = '') {
+    const lead = state.leads.find((l) => l.id === leadId);
+    if (!lead) return;
+    const contact = {
+      id: uid(), at: now(), by, channel: lead.channel === 'whatsapp' ? 'whatsapp' : 'ostalo', sentText: String(note).trim(), quick: true,
+      prev: { followUpDate: lead.followUpDate || null, lastContact: lead.lastContact || null, lastWrote: lead.lastWrote || '', lastSent: lead.lastSent || '' },
+      arrivalDate: lead.arrivalDate || null, arrivalNote: lead.arrivalNote || '', viewedCount: (Number(lead.viewedManual) || 0) + viewedIds(lead).length,
+      chosen: (lead.viewings || []).filter((v) => v.status === 'planned').map((v) => v.duxId),
+    };
+    commit({
+      ...state,
+      leads: patchList(state.leads, leadId, {
+        contacts: [...(lead.contacts || []), contact], lastContact: today(), followUpDate: suggestDate(lead.temperature), lastWrote: 'agencija',
+        ...(contact.sentText ? { lastSent: contact.sentText } : {}),
+      }),
+    });
+  },
+  // Poništi zadnju brzu kvačicu (vraća prijašnji rok i stanje)
+  undoQuickContact(leadId) {
+    const lead = state.leads.find((l) => l.id === leadId);
+    const last = (lead?.contacts || []).filter((c) => c.quick).pop();
+    if (!last) return;
+    commit({
+      ...state,
+      leads: patchList(state.leads, leadId, {
+        contacts: lead.contacts.filter((c) => c.id !== last.id),
+        followUpDate: last.prev.followUpDate, lastContact: last.prev.lastContact, lastWrote: last.prev.lastWrote, lastSent: last.prev.lastSent,
+      }),
+    });
+  },
+
   // Prijedlog iz maila: dodaj kao kupca / vlasnika (ili ignoriraj)
   acceptSuggestion(id, kind) {
     const lead = state.leads.find((l) => l.id === id);

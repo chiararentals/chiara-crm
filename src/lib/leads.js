@@ -31,7 +31,10 @@ const key = (v) => norm(v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''
 function toIso(v) {
   if (!v) return null;
   if (v instanceof Date) return v.toISOString().slice(0, 10);
-  const m = norm(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const t = norm(v);
+  const d = t.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/); // tekst "13.11.2026"
+  if (d) return `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`;
+  const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
@@ -132,6 +135,14 @@ export function followUpState(lead) {
 }
 export const nextDate = (days) => plusDays(today(), days);
 
+export const WA_LABELS = { 'A kupac': 'A – vrući', 'B kupac': 'B kupac', 'C kupac': 'C – lagan', Realizirani: 'Realizirani' };
+export const isWhatsApp = (l) => l.channel === 'whatsapp';
+// wa.me poveznica s unaprijed upisanom porukom
+export const waLinkText = (phone, text) => {
+  const base = waLink(phone);
+  return base && text ? `${base}?text=${encodeURIComponent(text)}` : base;
+};
+
 export const waLink = (phone) => {
   const digits = norm(phone).replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, '');
   return digits ? `https://wa.me/${digits}` : null;
@@ -175,7 +186,44 @@ export function staleImportCandidates(leads, cutoff) {
   if (!latest) return { latest: null, list: [] };
   const untouched = (l) => !(l.contacts?.length || l.viewings?.length || l.mailIds?.length || l.viewedManual || l.lastSent || l.arrivalDate || l.arrivalNote || l.notes || l.review || l.suggestion || l.propertyName || l.contractSigned);
   const list = leads.filter((l) =>
-    !isHidden(l) && ['kupac', 'najmoprimac'].includes(leadKind(l)) &&
+    !isHidden(l) && !isWhatsApp(l) && ['kupac', 'najmoprimac'].includes(leadKind(l)) &&
     l.createdAt && l.createdAt.slice(0, 10) < cutoff && l.importId !== latest && untouched(l));
   return { latest, list };
+}
+
+// ---- Uvoz WhatsApp tablice ("Kupci WhatsApp"): vruć/topao, telefon je glavni ključ ----
+const WA_COLS = {
+  Temperatura: 'temperature', 'Oznaka (WhatsApp)': 'waLabel', Kupac: 'name', Telefon: 'phone', Jezik: 'language', Izvor: 'source',
+  'Prvi kontakt': 'firstContact', 'Zadnji kontakt': 'lastContact', 'Br. poruka': 'messageCount', 'Zadnji pisao': 'lastWroteRaw',
+  Status: 'status', 'Zadnja komunikacija': 'lastComm', 'Sljedeći korak': 'nextStep', 'Follow-up do': 'followUpDate',
+  'Prijedlog follow-up poruke': 'suggestedMessage', 'Email (iz baze)': 'email', 'Što traži (iz baze)': 'wants',
+  'Lokacija (iz baze)': 'location', 'Cjenovni rang (iz baze)': 'priceRange',
+};
+export function rowsToWhatsApp(rows, firm) {
+  const [head, ...body] = rows;
+  const idx = {};
+  head.forEach((h, i) => { if (WA_COLS[norm(h)]) idx[WA_COLS[norm(h)]] = i; });
+  if (idx.name === undefined || idx.phone === undefined) throw new Error('Nedostaju stupci "Kupac" i "Telefon".');
+  const out = [];
+  for (const r of body) {
+    const g = (k) => (idx[k] === undefined ? '' : norm(r[idx[k]]));
+    const t = key(g('temperature'));
+    const temperature = t.startsWith('vruc') ? 'vruc' : t.startsWith('topao') ? 'topao' : null;
+    if (!temperature || !g('name')) continue;
+    out.push({
+      firm, channel: 'whatsapp', temperature, name: g('name').replace(/\s+kupac$/i, ''), phone: g('phone'), email: g('email'),
+      language: g('language'), source: g('source') || 'WhatsApp', waLabel: g('waLabel'), wants: g('wants'), location: g('location'),
+      priceRange: g('priceRange'), lastComm: g('lastComm'), nextStep: g('nextStep'), suggestedMessage: g('suggestedMessage'),
+      status: g('status') || 'otvoren', lastWrote: /^kupac/i.test(g('lastWroteRaw')) ? 'kupac' : g('lastWroteRaw') ? 'agencija' : '',
+      messageCount: Number(g('messageCount')) || 0,
+      lastContact: toIso(r[idx.lastContact]), followUpDate: futureOrNull(toIso(r[idx.followUpDate])),
+    });
+  }
+  return out;
+}
+export async function parseWhatsAppExcel(file, firm) {
+  const { default: readXlsxFile, readSheetNames } = await import('read-excel-file');
+  const names = await readSheetNames(file);
+  const sheet = names.find((n) => /whatsapp|kupci/i.test(n)) || names[0];
+  return rowsToWhatsApp(await readXlsxFile(file, { sheet }), firm);
 }

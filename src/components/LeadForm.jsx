@@ -3,7 +3,7 @@ import Modal from './Modal';
 import { FirmPicker } from './FirmBadge';
 import { actions } from '../data';
 import { useFirm } from '../lib/firm';
-import { TEMPERATURES, KINDS } from '../lib/leads';
+import { TEMPERATURES, KINDS, WA_LABELS } from '../lib/leads';
 import { TEAM } from '../seed';
 
 export default function LeadForm({ lead, defaults = {}, onClose }) {
@@ -74,6 +74,17 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
           </div>
         )}
         <div><label className="label">{f.kind === 'vlasnik' ? 'Što nudi / dogovor' : f.kind === 'najmoprimac' ? 'Što traži (lokacija, tip stana)' : 'Što traži'}</label><textarea className="field min-h-[60px]" value={f.wants} onChange={set('wants')} /></div>
+        {f.channel === 'whatsapp' && (
+          <div className="space-y-3 rounded-xl bg-mist p-3">
+            <div>
+              <label className="label">Oznaka (WhatsApp Business)</label>
+              <select className="field" value={f.waLabel || ''} onChange={set('waLabel')}>
+                <option value="">—</option>{Object.entries(WA_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div><label className="label">Prijedlog poruke za follow-up</label><textarea className="field min-h-[70px]" value={f.suggestedMessage || ''} onChange={set('suggestedMessage')} placeholder="Otvara se u WhatsAppu gumbom „WhatsApp s porukom”" /></div>
+          </div>
+        )}
         <div><label className="label">Prepreka</label><input className="field" value={f.obstacle || ''} onChange={set('obstacle')} /></div>
         <div><label className="label">Sljedeći korak</label><input className="field" value={f.nextStep} onChange={set('nextStep')} /></div>
         <div><label className="label">Napomena</label><textarea className="field min-h-[60px]" value={f.notes} onChange={set('notes')} /></div>

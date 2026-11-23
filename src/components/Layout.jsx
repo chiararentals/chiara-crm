@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, Palmtree, CalendarRange, Ellipsis, ChevronsUpDown } from 'lucide-react';
+import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, MessageCircle, Palmtree, CalendarRange, Ellipsis, ChevronsUpDown } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { useFirm } from '../lib/firm';
 import { useAuth } from '../lib/auth';
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/kupci', label: 'Kupci', icon: Users, firms: ['', 'dux', 'bonvia'], primary: true },
   { to: '/vlasnici', label: 'Vlasnici', icon: KeyRound, firms: ['', 'dux', 'bonvia'], primary: true },
   { to: '/najmoprimci', label: 'Najmoprimci', icon: DoorOpen, firms: ['', 'dux', 'bonvia'] },
+  { to: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, firms: ['', 'dux', 'bonvia'] },
   { to: '/vile', label: 'Bonvia vile', icon: Palmtree, firms: ['', 'bonvia'] },
   { to: '/content', label: 'Content', icon: CalendarRange, firms: ['', 'chiara', 'bonvia'] },
   { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'], hidden: true },
