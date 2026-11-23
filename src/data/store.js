@@ -13,12 +13,12 @@ const now = () => new Date().toISOString();
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { villas: [], ...JSON.parse(raw) };
   } catch { /* prazan ili pokvaren spremnik – kreni ispočetka */ }
   return buildInitialState();
 }
 
-const EMPTY = { properties: [], units: [], stays: [], stayTasks: [], todos: [], recurring: [], leads: [], templates: [] };
+const EMPTY = { properties: [], units: [], stays: [], stayTasks: [], todos: [], recurring: [], leads: [], templates: [], villas: [] };
 let state = remoteEnabled ? EMPTY : load();
 const listeners = new Set();
 
@@ -283,6 +283,15 @@ export const actions = {
       }),
     });
   },
+
+  // ---- Vile (Bonvia): ime ville, vlasnik, kontakt, ugovor, dokumenti ----
+  addVilla(data) {
+    const id = uid();
+    commit({ ...state, villas: [...(state.villas || []), { status: 'prospekt', files: [], notes: '', ...data, id, createdAt: now() }] });
+    return id;
+  },
+  updateVilla(id, patch) { commit({ ...state, villas: patchList(state.villas || [], id, patch) }); },
+  deleteVilla(id) { commit({ ...state, villas: (state.villas || []).filter((v) => v.id !== id) }); },
 
   // ---- Objekti i jedinice ----
   addProperty(name) {

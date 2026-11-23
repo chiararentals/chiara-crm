@@ -10,6 +10,7 @@ import Todos from './pages/Todos';
 import Leads from './pages/Leads';
 import Settings from './pages/Settings';
 import Overview from './pages/Overview';
+import Villas from './pages/Villas';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="boravci" element={<Stays />} />
           <Route path="kupci" element={<Leads />} />
           <Route path="vlasnici" element={<Leads mode="vlasnici" />} />
+          <Route path="vile" element={<Villas />} />
           <Route path="najmoprimci" element={<Leads mode="najmoprimci" />} />
           <Route path="pregled" element={<Overview />} />
           <Route path="arhiva" element={<Archive />} />

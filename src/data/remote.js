@@ -3,11 +3,16 @@ import { COLLECTIONS, diffState } from './diff';
 
 const TABLE = {
   properties: 'properties', units: 'units', stays: 'stays', stayTasks: 'stay_tasks',
-  todos: 'todos', recurring: 'recurring', leads: 'leads', templates: 'templates',
+  todos: 'todos', recurring: 'recurring', leads: 'leads', templates: 'templates', villas: 'villas',
 };
 const KEY_BY_TABLE = Object.fromEntries(Object.entries(TABLE).map(([k, t]) => [t, k]));
 const rows = (list) => list.map((x) => ({ id: x.id, data: x, updated_at: new Date().toISOString() }));
 const chunks = (list, n = 500) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
+
+// Tablice koje još ne postoje u bazi (npr. "villas" prije pokretanja SQL-a): aplikacija radi dalje, a stranica pokaže uputu
+export const missingTables = new Set();
+const OPTIONAL = new Set(['villas']);
+const isMissingTable = (e) => ['42P01', 'PGRST205'].includes(e?.code) || /does not exist|could not find the table/i.test(e?.message || '');
 
 export async function fetchAll() {
   const state = {};
@@ -15,6 +20,7 @@ export async function fetchAll() {
     let all = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from(TABLE[key]).select('data').order('id').range(from, from + 999);
+      if (error && OPTIONAL.has(key) && isMissingTable(error)) { missingTables.add(key); break; }
       if (error) throw error;
       all = all.concat(data.map((r) => r.data));
       if (data.length < 1000) break;
@@ -27,6 +33,7 @@ export async function fetchAll() {
 export async function writeDiff(prev, next) {
   const d = diffState(prev, next);
   for (const [key, { added, changed, removed }] of Object.entries(d)) {
+    if (missingTables.has(key)) continue; // tablica još ne postoji u bazi
     const table = TABLE[key];
     // novi retci: ne pregazi ako ga je netko drugi već stvorio (npr. dnevni zadaci)
     for (const c of chunks(added)) {

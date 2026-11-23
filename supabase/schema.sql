@@ -19,7 +19,7 @@ $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['properties','units','stays','stay_tasks','todos','recurring','leads','templates'] loop
+  foreach t in array array['properties','units','stays','stay_tasks','todos','recurring','leads','templates','villas'] loop
     execute format('create table if not exists public.%I (id text primary key, data jsonb not null, updated_at timestamptz not null default now())', t);
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists team_all on public.%I', t);
@@ -32,3 +32,14 @@ end $$;
 
 -- Servis za čitanje maila (api/mail-sync.js) koristi tajni ključ (service_role) i treba pravo na tablice.
 grant all on all tables in schema public to service_role;
+
+-- Vile: privatni spremnik za dokumente (ugovori)
+insert into storage.buckets (id, name, public) values ('ugovori', 'ugovori', false) on conflict (id) do nothing;
+drop policy if exists "ugovori team select" on storage.objects;
+drop policy if exists "ugovori team insert" on storage.objects;
+drop policy if exists "ugovori team update" on storage.objects;
+drop policy if exists "ugovori team delete" on storage.objects;
+create policy "ugovori team select" on storage.objects for select to authenticated using (bucket_id = 'ugovori' and public.is_team());
+create policy "ugovori team insert" on storage.objects for insert to authenticated with check (bucket_id = 'ugovori' and public.is_team());
+create policy "ugovori team update" on storage.objects for update to authenticated using (bucket_id = 'ugovori' and public.is_team()) with check (bucket_id = 'ugovori' and public.is_team());
+create policy "ugovori team delete" on storage.objects for delete to authenticated using (bucket_id = 'ugovori' and public.is_team());
