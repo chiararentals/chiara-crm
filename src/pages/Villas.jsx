@@ -23,7 +23,7 @@ export default function Villas() {
 
   return (
     <>
-      <PageHeader title="Vile" subtitle={`Bonvia · ${villas.length} ${villas.length === 1 ? 'vila' : 'vila'} u portfelju`}>
+      <PageHeader title="Bonvia vile" subtitle={`${villas.length} ${villas.length === 1 ? 'vila' : 'vila'} u portfelju`}>
         <button className="btn-primary" disabled={missing} onClick={() => setOpen({})}><Plus size={18} /> Nova vila</button>
       </PageHeader>
 

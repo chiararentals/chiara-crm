@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, Palmtree, CalendarRange, TrendingUp, Ellipsis, ChevronsUpDown } from 'lucide-react';
+import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, Palmtree, CalendarRange, Ellipsis, ChevronsUpDown } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { useFirm } from '../lib/firm';
 import { useAuth } from '../lib/auth';
@@ -8,16 +8,17 @@ import { useSync } from '../data';
 import { TEAM, FIRMS } from '../seed';
 
 // firms: na kojim prikazima firme se stavka vidi (boravci/gosti su samo Chiara)
+// Redoslijed: Dux (kupci, vlasnici, najmoprimci) zajedno, pa Bonvia vile i Content.
+// hidden: stavka je privremeno sakrivena iz izbornika (stranica i dalje postoji na adresi).
 const NAV = [
   { to: '/', label: 'Danas', icon: CalendarCheck, end: true, primary: true },
   { to: '/zadaci', label: 'Zadaci', icon: ListChecks, primary: true },
   { to: '/kupci', label: 'Kupci', icon: Users, firms: ['', 'dux', 'bonvia'], primary: true },
   { to: '/vlasnici', label: 'Vlasnici', icon: KeyRound, firms: ['', 'dux', 'bonvia'], primary: true },
-  { to: '/content', label: 'Content', icon: CalendarRange, firms: ['', 'chiara', 'bonvia'] },
-  { href: 'https://claude.ai/artifact/PJwqAgHVxqKD1mBGHVjsBJ', label: 'Social', icon: TrendingUp, firms: ['', 'chiara'] },
-  { to: '/vile', label: 'Vile', icon: Palmtree, firms: ['', 'bonvia'] },
   { to: '/najmoprimci', label: 'Najmoprimci', icon: DoorOpen, firms: ['', 'dux', 'bonvia'] },
-  { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'], primary: true },
+  { to: '/vile', label: 'Bonvia vile', icon: Palmtree, firms: ['', 'bonvia'] },
+  { to: '/content', label: 'Content', icon: CalendarRange, firms: ['', 'chiara', 'bonvia'] },
+  { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'], hidden: true },
   { to: '/pregled', label: 'Pregled', icon: BarChart3 },
   { to: '/arhiva', label: 'Arhiva', icon: Archive },
   { to: '/postavke', label: 'Postavke', icon: Settings },
@@ -50,7 +51,7 @@ export default function Layout() {
   const [firm] = useFirm();
   const auth = useAuth();
   const { error } = useSync();
-  const nav = NAV.filter((n) => !n.firms || n.firms.includes(firm));
+  const nav = NAV.filter((n) => !n.hidden && (!n.firms || n.firms.includes(firm)));
   // Mobitel: 4 glavne stavke u donjoj traci, ostalo pod „Više”
   const bar = nav.filter((n) => n.primary).slice(0, 4);
   const more = nav.filter((n) => !bar.includes(n));
