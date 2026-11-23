@@ -3,7 +3,7 @@ import { COLLECTIONS, diffState } from './diff';
 
 const TABLE = {
   properties: 'properties', units: 'units', stays: 'stays', stayTasks: 'stay_tasks',
-  todos: 'todos', recurring: 'recurring', leads: 'leads', templates: 'templates', villas: 'villas',
+  todos: 'todos', recurring: 'recurring', leads: 'leads', templates: 'templates', villas: 'villas', content: 'content',
 };
 const KEY_BY_TABLE = Object.fromEntries(Object.entries(TABLE).map(([k, t]) => [t, k]));
 const rows = (list) => list.map((x) => ({ id: x.id, data: x, updated_at: new Date().toISOString() }));
@@ -11,7 +11,7 @@ const chunks = (list, n = 500) => Array.from({ length: Math.ceil(list.length / n
 
 // Tablice koje još ne postoje u bazi (npr. "villas" prije pokretanja SQL-a): aplikacija radi dalje, a stranica pokaže uputu
 export const missingTables = new Set();
-const OPTIONAL = new Set(['villas']);
+const OPTIONAL = new Set(['villas', 'content']);
 const isMissingTable = (e) => ['42P01', 'PGRST205'].includes(e?.code) || /does not exist|could not find the table/i.test(e?.message || '');
 
 export async function fetchAll() {

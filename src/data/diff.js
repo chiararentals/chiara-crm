@@ -1,5 +1,5 @@
 // Usporedi staro i novo stanje i vrati što treba upisati / obrisati u bazi.
-export const COLLECTIONS = ['properties', 'units', 'stays', 'stayTasks', 'todos', 'recurring', 'leads', 'templates', 'villas'];
+export const COLLECTIONS = ['properties', 'units', 'stays', 'stayTasks', 'todos', 'recurring', 'leads', 'templates', 'villas', 'content'];
 
 export function diffState(prev, next) {
   const out = {};

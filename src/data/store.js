@@ -13,12 +13,12 @@ const now = () => new Date().toISOString();
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { villas: [], ...JSON.parse(raw) };
+    if (raw) return { villas: [], content: [], ...JSON.parse(raw) };
   } catch { /* prazan ili pokvaren spremnik – kreni ispočetka */ }
   return buildInitialState();
 }
 
-const EMPTY = { properties: [], units: [], stays: [], stayTasks: [], todos: [], recurring: [], leads: [], templates: [], villas: [] };
+const EMPTY = { properties: [], units: [], stays: [], stayTasks: [], todos: [], recurring: [], leads: [], templates: [], villas: [], content: [] };
 let state = remoteEnabled ? EMPTY : load();
 const listeners = new Set();
 
@@ -293,6 +293,33 @@ export const actions = {
   },
   updateVilla(id, patch) { commit({ ...state, villas: patchList(state.villas || [], id, patch) }); },
   deleteVilla(id) { commit({ ...state, villas: (state.villas || []).filter((v) => v.id !== id) }); },
+
+  // ---- Content plan (društvene mreže, blog) ----
+  addContent(data, by) {
+    const id = uid();
+    commit({ ...state, content: [...(state.content || []), { status: 'planirano', ...data, id, createdBy: by, createdAt: now() }] });
+    return id;
+  },
+  updateContent(id, patch) { commit({ ...state, content: patchList(state.content || [], id, patch) }); },
+  deleteContent(id) { commit({ ...state, content: (state.content || []).filter((c) => c.id !== id) }); },
+  // Uvoz iz tablice: ista objava (firma + mreža + naslov + planirani datum) = ažuriranje, inače nova.
+  // Iz tablice se uzimaju samo popunjena polja, da se ne prebriše ono što je upisano u CRM-u.
+  importContent(list, by) {
+    const key = (c) => [c.firm, c.platform, String(c.title).trim().toLowerCase(), c.plannedDate || ''].join('|');
+    const items = [...(state.content || [])];
+    let added = 0, updated = 0;
+    for (const c of list) {
+      const i = items.findIndex((x) => key(x) === key(c));
+      if (i >= 0) {
+        const patch = {};
+        for (const [k, v] of Object.entries(c)) if (v !== '' && v != null) patch[k] = v;
+        items[i] = { ...items[i], ...patch, id: items[i].id };
+        updated++;
+      } else { items.push({ ...c, id: uid(), createdBy: by, createdAt: now() }); added++; }
+    }
+    commit({ ...state, content: items });
+    return { added, updated };
+  },
 
   // ---- Objekti i jedinice ----
   addProperty(name) {

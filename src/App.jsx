@@ -11,6 +11,7 @@ import Leads from './pages/Leads';
 import Settings from './pages/Settings';
 import Overview from './pages/Overview';
 import Villas from './pages/Villas';
+import Content from './pages/Content';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="boravci" element={<Stays />} />
           <Route path="kupci" element={<Leads />} />
           <Route path="vlasnici" element={<Leads mode="vlasnici" />} />
+          <Route path="content" element={<Content />} />
           <Route path="vile" element={<Villas />} />
           <Route path="najmoprimci" element={<Leads mode="najmoprimci" />} />
           <Route path="pregled" element={<Overview />} />

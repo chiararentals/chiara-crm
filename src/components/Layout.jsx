@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, Palmtree, Ellipsis, ChevronsUpDown } from 'lucide-react';
+import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, Palmtree, CalendarRange, TrendingUp, Ellipsis, ChevronsUpDown } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { useFirm } from '../lib/firm';
 import { useAuth } from '../lib/auth';
@@ -13,6 +13,8 @@ const NAV = [
   { to: '/zadaci', label: 'Zadaci', icon: ListChecks, primary: true },
   { to: '/kupci', label: 'Kupci', icon: Users, firms: ['', 'dux', 'bonvia'], primary: true },
   { to: '/vlasnici', label: 'Vlasnici', icon: KeyRound, firms: ['', 'dux', 'bonvia'], primary: true },
+  { to: '/content', label: 'Content', icon: CalendarRange, firms: ['', 'chiara', 'bonvia'] },
+  { href: 'https://claude.ai/artifact/PJwqAgHVxqKD1mBGHVjsBJ', label: 'Social', icon: TrendingUp, firms: ['', 'chiara'] },
   { to: '/vile', label: 'Vile', icon: Palmtree, firms: ['', 'bonvia'] },
   { to: '/najmoprimci', label: 'Najmoprimci', icon: DoorOpen, firms: ['', 'dux', 'bonvia'] },
   { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'], primary: true },
@@ -20,6 +22,12 @@ const NAV = [
   { to: '/arhiva', label: 'Arhiva', icon: Archive },
   { to: '/postavke', label: 'Postavke', icon: Settings },
 ];
+
+// Stavka izbornika: unutarnja (NavLink) ili vanjska poveznica (otvara se u novom tabu)
+function NavItem({ item, className, children }) {
+  if (item.href) return <a href={item.href} target="_blank" rel="noreferrer" className={typeof className === 'function' ? className({ isActive: false }) : className}>{children}</a>;
+  return <NavLink to={item.to} end={item.end} className={className}>{children}</NavLink>;
+}
 
 function FirmSelect({ className = '' }) {
   const [firm, setFirm] = useFirm();
@@ -49,7 +57,7 @@ export default function Layout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const loc = useLocation();
   useEffect(() => setMoreOpen(false), [loc.pathname]);
-  const moreActive = more.some((n) => (n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)));
+  const moreActive = more.some((n) => (n.end ? loc.pathname === n.to : n.to && loc.pathname.startsWith(n.to)));
 
   return (
     <div className="min-h-screen lg:flex">
@@ -59,12 +67,12 @@ export default function Layout() {
         <div className="mb-4 px-1 text-xs text-mute">Chiara · Bonvia · Dux</div>
         <FirmSelect />
         <nav className="mt-6 space-y-1">
-          {nav.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end}
+          {nav.map((item) => { const { to, href, label, icon: Icon } = item; return (
+            <NavItem key={to || href} item={item}
               className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${isActive ? 'bg-ink text-white' : 'text-soft hover:bg-black/5'}`}>
               <Icon size={18} /> {label}
-            </NavLink>
-          ))}
+            </NavItem>
+          ); })}
         </nav>
         <div className="mt-auto">
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-mute">Prijavljen/a kao</label>
@@ -109,23 +117,23 @@ export default function Layout() {
         <div className="fixed inset-0 z-30 bg-navy/40 lg:hidden" onClick={() => setMoreOpen(false)}>
           <div className="absolute inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] rounded-t-3xl bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="grid grid-cols-3 gap-2">
-              {more.map(({ to, label, icon: Icon, end }) => (
-                <NavLink key={to} to={to} end={end}
+              {more.map((item) => { const { to, href, label, icon: Icon } = item; return (
+                <NavItem key={to || href} item={item}
                   className={({ isActive }) => `flex flex-col items-center gap-1 rounded-2xl p-3 text-xs font-semibold ${isActive ? 'bg-ink text-white' : 'bg-mist text-navy'}`}>
                   <Icon size={22} /> {label}
-                </NavLink>
-              ))}
+                </NavItem>
+              ); })}
             </div>
           </div>
         </div>
       )}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-black/5 bg-white lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {bar.map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end}
+        {bar.map((item) => { const { to, href, label, icon: Icon } = item; return (
+          <NavItem key={to || href} item={item}
             className={({ isActive }) => `flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${isActive ? 'text-navy' : 'text-mute'}`}>
             <Icon size={21} /> {label}
-          </NavLink>
-        ))}
+          </NavItem>
+        ); })}
         <button onClick={() => setMoreOpen(!moreOpen)} className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${moreActive || moreOpen ? 'text-navy' : 'text-mute'}`}>
           <Ellipsis size={21} /> Više
         </button>

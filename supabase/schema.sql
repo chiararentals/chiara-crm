@@ -19,7 +19,7 @@ $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['properties','units','stays','stay_tasks','todos','recurring','leads','templates','villas'] loop
+  foreach t in array array['properties','units','stays','stay_tasks','todos','recurring','leads','templates','villas','content'] loop
     execute format('create table if not exists public.%I (id text primary key, data jsonb not null, updated_at timestamptz not null default now())', t);
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists team_all on public.%I', t);
