@@ -195,7 +195,7 @@ export default function Leads({ mode = 'kupci' }) {
           <button className="btn-outline" onClick={() => setShowCal(!showCal)}><CalendarDays size={16} /> Kalendar kontakata</button>
           <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
           {!owners && <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>}
-          {!owners && <button className="btn-outline" onClick={() => setCleanup(true)}><Trash2 size={16} /> Očisti stare</button>}
+          {mode !== 'vlasnici' && <button className="btn-outline" onClick={() => setCleanup(true)}><Trash2 size={16} /> Očisti stare</button>}
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
           <button className="btn-primary" onClick={() => setForm(owners ? { kind: MODE_KIND[mode] } : {})}><Plus size={18} /> {text.add}</button>
         </div>
@@ -271,7 +271,7 @@ export default function Leads({ mode = 'kupci' }) {
         );
       })}
 
-      {cleanup && <CleanupDialog leads={leads} onClose={() => setCleanup(false)} onDone={setMsg} />}
+      {cleanup && <CleanupDialog leads={allLeads.filter((l) => !isHidden(l))} onClose={() => setCleanup(false)} onDone={setMsg} />}
       {detail && <LeadDetail leadId={detail} onClose={() => setDetail(null)} />}
       {contact && <ContactDialog lead={contact} onClose={() => setContact(null)} />}
       {dataFor && <ContactDialog dataOnly lead={dataFor} onClose={() => setDataFor(null)} />}

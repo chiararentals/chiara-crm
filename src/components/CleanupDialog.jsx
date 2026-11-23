@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import Modal from './Modal';
 import { actions } from '../data';
-import { staleImportCandidates } from '../lib/leads';
+import { staleImportCandidates, leadKind, KINDS } from '../lib/leads';
 import { exportLeads } from '../lib/exportLeads';
 import { fmtDate } from '../lib/dates';
 
@@ -33,7 +33,7 @@ export default function CleanupDialog({ leads, onClose, onDone }) {
             </div>
             <p className="font-semibold">{list.length} kupaca za brisanje</p>
             <ul className="max-h-60 space-y-1 overflow-y-auto rounded-xl bg-mist p-3">
-              {list.slice(0, 40).map((l) => <li key={l.id}>{l.name} <span className="text-mute">· {l.email || l.phone || 'bez kontakta'} · stigao {fmtDate(l.createdAt.slice(0, 10))}</span></li>)}
+              {list.slice(0, 40).map((l) => <li key={l.id}>{l.name} <span className="text-mute">· {KINDS[leadKind(l)]} · {l.email || l.phone || 'bez kontakta'} · stigao {fmtDate(l.createdAt.slice(0, 10))}</span></li>)}
               {list.length > 40 && <li className="text-mute">… i još {list.length - 40}</li>}
               {!list.length && <li className="text-mute">Nema kupaca za brisanje.</li>}
             </ul>
