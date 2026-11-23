@@ -45,7 +45,7 @@ const COLS = {
 const futureOrNull = (d) => (d && d >= today() ? d : null);
 
 // Redovi tablice (prvi red = zaglavlje) -> popis kupaca. Uvozi samo vruće i tople.
-export function rowsToLeads(rows, firm) {
+export function rowsToLeads(rows, firm, kind) {
   const [head, ...body] = rows;
   const idx = {};
   head.forEach((h, i) => { if (COLS[norm(h)]) idx[COLS[norm(h)]] = i; });
@@ -57,7 +57,7 @@ export function rowsToLeads(rows, firm) {
     if (!temperature || !norm(r[idx.name])) continue;
     const g = (k) => (idx[k] === undefined ? '' : norm(r[idx[k]]));
     out.push({
-      firm, temperature, name: g('name'), email: g('email'), phone: g('phone'), language: g('language'),
+      firm, ...(kind ? { kind } : {}), temperature, name: g('name'), email: g('email'), phone: g('phone'), language: g('language'),
       source: g('source'), listingId: g('listingId').replace(/\.0$/, ''), location: g('location'), type: g('type'),
       priceRange: g('priceRange'), wants: g('wants'), obstacle: g('obstacle'), lastComm: g('lastComm'),
       nextStep: g('nextStep'), status: g('status') || 'otvoren',
@@ -68,11 +68,58 @@ export function rowsToLeads(rows, firm) {
   return out;
 }
 
-export async function parseExcel(file, firm) {
-  const { default: readXlsxFile } = await import('read-excel-file');
-  let rows;
-  try { rows = await readXlsxFile(file, { sheet: 'Kupci' }); } catch { rows = await readXlsxFile(file); }
-  return rowsToLeads(rows, firm);
+// List "Prodavatelji" (i najmodavci): drugi stupci od lista kupaca. Svi su vlasnici.
+const OWNER_COLS = {
+  Vlasnik: 'name', Email: 'email', Telefon: 'phone', Jezik: 'language', Nekretnina: 'propertyName', 'ID oglasa': 'listingId',
+  'Prodaja / najam': 'offerType', Cijena: 'askingPrice', 'Zadnji kontakt': 'lastContact', 'Zadnja komunikacija': 'lastComm',
+  'Sljedeći korak': 'nextStep', 'Follow-up do': 'followUpDate',
+};
+export function rowsToOwners(rows, firm) {
+  const [head, ...body] = rows;
+  const idx = {};
+  head.forEach((h, i) => { if (OWNER_COLS[norm(h)]) idx[OWNER_COLS[norm(h)]] = i; });
+  if (idx.name === undefined) throw new Error('Na listu prodavatelja nedostaje stupac "Vlasnik".');
+  const g = (r, k) => (idx[k] === undefined ? '' : norm(r[idx[k]]));
+  const unknown = (v) => (/^nepoznato$/i.test(v) ? '' : v);
+  const out = [];
+  for (const r of body) {
+    if (!g(r, 'name')) continue;
+    out.push({
+      firm, kind: 'vlasnik', temperature: 'topao', status: 'otvoren', name: g(r, 'name'), email: g(r, 'email'), phone: g(r, 'phone'), language: g(r, 'language'),
+      propertyName: g(r, 'propertyName'), listingId: g(r, 'listingId').replace(/\.0$/, ''), type: unknown(g(r, 'offerType')), askingPrice: g(r, 'askingPrice'),
+      lastComm: g(r, 'lastComm'), nextStep: g(r, 'nextStep'), source: 'tablica',
+      lastContact: toIso(r[idx.lastContact]), followUpDate: futureOrNull(toIso(r[idx.followUpDate])),
+    });
+  }
+  return out;
+}
+
+// Vrsta po nazivu lista (bez obzira na velika slova i dijakritike)
+export function sheetKind(name) {
+  const k = key(name);
+  if (/najmoprim/.test(k)) return 'najmoprimac';
+  if (/prodavat|najmodav|vlasnik/.test(k)) return 'vlasnik';
+  if (/kupc|kupac/.test(k)) return 'kupac';
+  return null;
+}
+
+// Čita SVE listove koje prepozna (Kupci, Najmoprimci, Prodavatelji…) i svakom daje pripadajuću vrstu.
+export async function parseExcelAll(file, firm) {
+  const { default: readXlsxFile, readSheetNames } = await import('read-excel-file');
+  let names;
+  try { names = await readSheetNames(file); } catch { names = []; }
+  if (!names.length) return { list: rowsToLeads(await readXlsxFile(file), firm, 'kupac'), sheets: { Kupci: 0 }, ignored: [] };
+  const list = [], sheets = {}, ignored = [];
+  for (const name of names) {
+    const kind = sheetKind(name);
+    if (!kind) { ignored.push(name); continue; }
+    const rows = await readXlsxFile(file, { sheet: name });
+    if (!rows.length) continue;
+    const part = kind === 'vlasnik' ? rowsToOwners(rows, firm) : rowsToLeads(rows, firm, kind);
+    sheets[name] = part.length;
+    list.push(...part);
+  }
+  return { list, sheets, ignored };
 }
 
 // kasni / danas / uskoro / bez datuma

@@ -220,7 +220,7 @@ export const actions = {
       const i = leads.findIndex((l) => sameLead(l, item));
       if (i >= 0) {
         const cur = leads[i];
-        const patch = { importId: batch };
+        const patch = { importId: batch, suggestion: false, ignored: false };
         for (const [k, v] of Object.entries(item)) if (v !== '' && v != null) patch[k] = v;
         if (cur.contacts?.length) { delete patch.followUpDate; delete patch.lastContact; }
         leads[i] = { ...cur, ...patch, id: cur.id };

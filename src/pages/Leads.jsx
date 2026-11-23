@@ -11,7 +11,7 @@ import ContactDialog from '../components/ContactDialog';
 import ContactsCalendar from '../components/ContactsCalendar';
 import CleanupDialog from '../components/CleanupDialog';
 import { exportLeads } from '../lib/exportLeads';
-import { TEMPERATURES, KINDS, followUpState, parseExcel, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
+import { TEMPERATURES, KINDS, followUpState, parseExcelAll, waLink, leadOwner, lateLeads, leadKind, isHidden, contractState } from '../lib/leads';
 import { fmtShort, today, plusDays } from '../lib/dates';
 import { TEAM } from '../seed';
 
@@ -164,13 +164,14 @@ export default function Leads({ mode = 'kupci' }) {
     e.target.value = '';
     if (!file) return;
     try {
-      const list = await parseExcel(file, importFirm);
+      const { list, sheets, ignored } = await parseExcelAll(file, importFirm);
       const open = list.filter((l) => !/^zatvoren/i.test(l.status || ''));
-      const hot = open.filter((l) => l.temperature === 'vruc').length;
-      if (!list.length) { setMsg('U tablici nema vrućih ni toplih kupaca.'); return; }
-      if (!confirm(`Uvesti ${open.length} otvorenih kupaca (${hot} vrućih, ${open.length - hot} toplih) u firmu ${importFirm === 'dux' ? 'Dux' : importFirm === 'bonvia' ? 'Bonvia' : 'Chiara'}?\n\nKupci koji već postoje (isti email) bit će ažurirani, a ono što ste upisali u CRM (kontakti, nekretnine, rokovi nakon kontakta) ostaje. Stari rokovi iz tablice se preskaču, a novi kupci dobivaju rok +4 dana (vruć) ili +7 (topao). Zatvoreni (kupio/odustao): ${list.length - open.length}.`)) return;
+      if (!list.length) { setMsg('U tablici nema prepoznatih listova s kupcima, najmoprimcima ili prodavateljima.'); return; }
+      const perSheet = Object.entries(sheets).map(([n, c]) => `${n}: ${c}`).join(', ');
+      const firmName = importFirm === 'dux' ? 'Dux' : importFirm === 'bonvia' ? 'Bonvia' : 'Chiara';
+      if (!confirm(`Uvesti ${open.length} kontakata u firmu ${firmName}?\n\nListovi: ${perSheet}${ignored.length ? `\n(preskočeni listovi: ${ignored.join(', ')})` : ''}\n\nKupci koji već postoje (isti email, pa telefon, pa ime) bit će ažurirani i prebačeni u vrstu iz lista (Kupci, Najmoprimci, Vlasnici); ono što ste upisali u CRM (kontakti, nekretnine, rokovi nakon kontakta) ostaje. Stari rokovi iz tablice se preskaču. Zatvoreni (kupio/odustao): ${list.length - open.length}.`)) return;
       const r = actions.importLeads(list);
-      setMsg(`Uvezeno: ${r.added} novih, ${r.updated} ažuriranih${r.closed ? `, ${r.closed} zatvorenih preskočeno` : ''}.`);
+      setMsg(`Uvezeno: ${r.added} novih, ${r.updated} ažuriranih${r.closed ? `, ${r.closed} zatvorenih preskočeno` : ''}. (${perSheet})`);
     } catch (err) {
       setMsg(`Uvoz nije uspio: ${err.message}`);
     }
