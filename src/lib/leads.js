@@ -3,10 +3,11 @@ import { daysFromToday, plusDays, today } from './dates';
 export const TEMPERATURES = {
   vruc: { label: 'Vruć', badge: 'bg-red-600 text-white' },
   topao: { label: 'Topao', badge: 'bg-orange-400 text-navy' },
+  hladan: { label: 'Hladan', badge: 'bg-sky-200 text-sky-900' },
 };
 
 // Prijedlog roka za sljedeći follow-up (dana): vruć 4, topao 7 (kao u tablici). U obrascu se može promijeniti.
-export const DEFAULT_DAYS = { vruc: 4, topao: 7 };
+export const DEFAULT_DAYS = { vruc: 4, topao: 7, hladan: 30 };
 export const suggestDate = (temperature) => plusDays(today(), DEFAULT_DAYS[temperature] ?? 7);
 export const isClosed = (l) => /^zatvoren/i.test(l.status || '');
 // Vrsta kontakta: kupac (zadano), vlasnik (nudi nekretninu, ugovor o posredovanju), ostalo
@@ -208,7 +209,7 @@ export function rowsToWhatsApp(rows, firm) {
   for (const r of body) {
     const g = (k) => (idx[k] === undefined ? '' : norm(r[idx[k]]));
     const t = key(g('temperature'));
-    const temperature = t.startsWith('vruc') ? 'vruc' : t.startsWith('topao') ? 'topao' : null;
+    const temperature = t.startsWith('vruc') ? 'vruc' : t.startsWith('topao') ? 'topao' : t.startsWith('hladan') ? 'hladan' : null;
     if (!temperature || !g('name')) continue;
     out.push({
       firm, channel: 'whatsapp', temperature, name: g('name').replace(/\s+kupac$/i, ''), phone: g('phone'), email: g('email'),

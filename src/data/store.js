@@ -1,7 +1,7 @@
 // "Sloj za podatke". Bez Supabase ključeva sve se sprema u preglednik (localStorage);
 // s ključevima se isto stanje sprema u Supabase i sinkronizira uživo među korisnicima.
 import { buildInitialState, buildBaseState, STANDARD_TASKS } from '../seed';
-import { today } from '../lib/dates';
+import { today, plusDays } from '../lib/dates';
 import { isClosed, suggestDate, viewedIds, followUpState, sameLead } from '../lib/leads';
 import { remoteEnabled } from '../lib/supabase';
 import * as remote from './remote';
@@ -110,6 +110,15 @@ function factsPatch(lead, form) {
   if (form.viewedManual !== '' && form.viewedManual != null) patch.viewedManual = Number(form.viewedManual) || 0;
   return patch;
 }
+// Hladni kupci bez roka: rasporedi ih na idućih 20 radnih dana (od +7 dana), da ih Vanja ne dobije sve isti dan
+function spreadDate(k) {
+  let d = plusDays(today(), 7), n = 0;
+  for (;;) {
+    const dow = new Date(`${d}T12:00:00`).getDay();
+    if (dow !== 0 && dow !== 6) { if (n === k % 20) return d; n++; }
+    d = plusDays(d, 1);
+  }
+}
 const patchList = (list, id, patch) => list.map((x) => (x.id === id ? { ...x, ...patch } : x));
 
 export const store = {
@@ -215,6 +224,7 @@ export const actions = {
   // - zatvoreni (kupio / odustao) se ne dodaju kao novi; postojećima se samo promijeni status
   importLeads(list) {
     let added = 0, updated = 0, closed = 0;
+    let cold = 0; // brojač hladnih bez roka (za raspoređivanje)
     const batch = now(); // oznaka ovog uvoza: svaki kupac koji je u tablici dobije je (za čišćenje starih)
     const leads = [...state.leads];
     for (const item of list) {
@@ -229,7 +239,7 @@ export const actions = {
       } else if (isClosed(item)) {
         closed++;
       } else {
-        leads.push({ notes: '', ...item, importId: batch, followUpDate: item.followUpDate || suggestDate(item.temperature), id: uid(), createdAt: now() });
+        leads.push({ notes: '', ...item, importId: batch, followUpDate: item.followUpDate || (item.temperature === 'hladan' ? spreadDate(cold++) : suggestDate(item.temperature)), id: uid(), createdAt: now() });
         added++;
       }
     }

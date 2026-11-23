@@ -206,8 +206,9 @@ export default function Leads({ mode = 'kupci' }) {
     try {
       if (wa) {
         const list = await parseWhatsAppExcel(file, importFirm);
-        if (!list.length) { setMsg('U tablici nema vrućih ni toplih WhatsApp kupaca.'); return; }
-        if (!confirm(`Uvesti ${list.length} WhatsApp kupaca (vrući i topli)?\n\nKupci koji već postoje (isti email, pa telefon, pa ime) bit će ažurirani i prebačeni u WhatsApp kao glavni kontakt; ono što ste upisali u CRM (kontakti, rokovi nakon kontakta) ostaje. Stari rokovi iz tablice se preskaču.`)) return;
+        if (!list.length) { setMsg('U tablici nema vrućih, toplih ni hladnih WhatsApp kupaca.'); return; }
+        const by = (t) => list.filter((l) => l.temperature === t).length;
+        if (!confirm(`Uvesti ${list.length} WhatsApp kupaca (${by('vruc')} vrućih, ${by('topao')} toplih, ${by('hladan')} hladnih)?\n\nHladni bez roka dobivaju rok raspoređen na idućih nekoliko tjedana.\n\nKupci koji već postoje (isti email, pa telefon, pa ime) bit će ažurirani i prebačeni u WhatsApp kao glavni kontakt; ono što ste upisali u CRM (kontakti, rokovi nakon kontakta) ostaje. Stari rokovi iz tablice se preskaču.`)) return;
         const r = actions.importLeads(list);
         setMsg(`Uvezeno: ${r.added} novih, ${r.updated} ažuriranih.`);
         return;
