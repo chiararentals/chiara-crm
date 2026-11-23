@@ -76,6 +76,7 @@ export async function initRemote() {
     unsubscribeRemote = remote.subscribe(applyRemote);
     setStatus({ ready: true, error: null });
     listeners.forEach((l) => l());
+    actions.renameMember('Ana', 'Vanja');
     actions.generateDaily();
   } catch (e) {
     console.error(e);
@@ -317,13 +318,32 @@ export const actions = {
   // ---- Predlošci poruka ----
   updateTemplate(id, patch) { commit({ ...state, templates: patchList(state.templates, id, patch) }); },
 
+  // Jednokratno preimenovanje člana tima u svim zapisima (Ana -> Vanja). Bezopasno za ponavljanje.
+  renameMember(from, to) {
+    const r = (v) => (v === from ? to : v);
+    let touched = false;
+    const mapList = (list, fn) => (list || []).map((x) => { const y = fn(x); if (y !== x) touched = true; return y; });
+    const next = {
+      ...state,
+      todos: mapList(state.todos, (t) => (t.assignee === from || t.doneBy === from || t.createdBy === from ? { ...t, assignee: r(t.assignee), doneBy: r(t.doneBy), createdBy: r(t.createdBy) } : t)),
+      stayTasks: mapList(state.stayTasks, (t) => (t.doneBy === from ? { ...t, doneBy: to } : t)),
+      stays: mapList(state.stays, (x) => (x.createdBy === from ? { ...x, createdBy: to } : x)),
+      recurring: mapList(state.recurring, (x) => (x.assignee === from ? { ...x, assignee: to } : x)),
+      leads: mapList(state.leads, (l) => (l.owner === from || (l.contacts || []).some((c) => c.by === from)
+        ? { ...l, owner: r(l.owner), contacts: (l.contacts || []).map((c) => (c.by === from ? { ...c, by: to } : c)) } : l)),
+      villas: mapList(state.villas, (v) => ((v.files || []).some((f) => f.by === from) ? { ...v, files: v.files.map((f) => (f.by === from ? { ...f, by: to } : f)) } : v)),
+    };
+    if (touched) commit(next);
+    return touched;
+  },
+
   // ---- Demo ----
   resetDemo() { if (!remoteEnabled) commit(buildInitialState()); },
 };
 
 // Svaki dan stvori današnje zadatke: pri pokretanju, pri povratku na karticu i svake minute.
 if (typeof window !== 'undefined') {
-  if (!remoteEnabled) actions.generateDaily();
+  if (!remoteEnabled) { actions.renameMember('Ana', 'Vanja'); actions.generateDaily(); }
   window.addEventListener('focus', () => actions.generateDaily());
   document.addEventListener('visibilitychange', () => { if (!document.hidden) actions.generateDaily(); });
   setInterval(() => actions.generateDaily(), 60000);
