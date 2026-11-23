@@ -3,6 +3,22 @@ import { plannedIds, viewedTotal, leadKind, contractState } from '../lib/leads';
 
 // 4 ključna odgovora o kupcu: što je poslano, kad dolazi, koliko je pogledao, što je izabrao
 export default function LeadFacts({ lead }) {
+  if (leadKind(lead) === 'najmoprimac') {
+    const cell = (label, value) => (
+      <div className="min-w-0 rounded-lg bg-white/70 px-2.5 py-1.5">
+        <div className="text-[10px] font-bold uppercase tracking-wide text-mute">{label}</div>
+        <div className={`line-clamp-2 text-xs font-semibold ${value ? 'text-navy' : 'text-mute'}`}>{value || '—'}</div>
+      </div>
+    );
+    return (
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        {cell('Budžet', lead.priceRange)}
+        {cell('Useljenje od', lead.moveInDate ? fmtDate(lead.moveInDate) : null)}
+        {cell('Osoba', lead.people)}
+        {cell('Ljubimci', lead.pets)}
+      </div>
+    );
+  }
   if (leadKind(lead) !== 'kupac') {
     const c = contractState(lead);
     const cell = (label, value, warn) => (

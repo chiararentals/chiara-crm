@@ -81,7 +81,7 @@ function baseLead({ source, email, name, message, listingId, price, subject, dat
     firm: 'dux', temperature, name: name || (email || '').split('@')[0], email: email || '', phone,
     language: detectLanguage(text), source, listingId: listingId || '', priceRange: price || '',
     wants: text.slice(0, 400), lastComm: `${(date || new Date()).toISOString().slice(0, 10)} upit (${source}): ${text.slice(0, 200)}`,
-    status: 'otvoren', type: isRental ? 'najam' : '', listingTitle: listingTitle || subject || '', review: true, owner: 'Vanja',
+    status: 'otvoren', type: isRental ? 'najam' : '', kind: isRental ? 'najmoprimac' : 'kupac', listingTitle: listingTitle || subject || '', review: true, owner: 'Vanja',
     firstContact: (date || new Date()).toISOString().slice(0, 10),
   };
 }

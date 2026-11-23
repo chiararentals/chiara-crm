@@ -7,44 +7,27 @@ import { CHANNELS, parseIds, plannedIds, suggestDate, TEMPERATURES, leadKind } f
 // Odrađen follow-up / kontakt: 4 obavezna odgovora + datum sljedećeg follow-upa.
 export default function ContactDialog({ lead, onClose, dataOnly }) {
   const [me] = useMe();
-  const known = lead.contacts?.length > 0;
   const buyer = leadKind(lead) === 'kupac'; // za vlasnike i ostale vrijedi samo pitanje 1 (što je poslano / dogovoreno)
   const [f, setF] = useState({
     sentText: '', channel: 'whatsapp',
-    arrival: lead.arrivalDate ? 'date' : known ? 'unknown' : '', arrivalDate: lead.arrivalDate || '', arrivalNote: lead.arrivalNote || '',
-    viewedManual: lead.viewedManual ?? (known ? 0 : ''), viewedText: '',
-    chosen: plannedIds(lead).length ? 'ids' : known ? 'none' : '', chosenText: plannedIds(lead).join(', '),
+    arrival: lead.arrivalDate ? 'date' : lead.arrivalNote ? 'unknown' : '', arrivalDate: lead.arrivalDate || '', arrivalNote: lead.arrivalNote || '',
+    viewedManual: lead.viewedManual ?? '', viewedText: '',
+    chosen: plannedIds(lead).length ? 'ids' : '', chosenText: plannedIds(lead).join(', '),
     nextDate: suggestDate(lead.temperature), noNext: false,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const chosenIds = f.chosen === 'ids' ? parseIds(f.chosenText) : [];
 
-  const missing = [];
-  if (!dataOnly && !f.sentText.trim()) missing.push('što je poslano');
-  if (!dataOnly && buyer) {
-    if (!(f.arrival === 'unknown' || (f.arrival === 'date' && f.arrivalDate))) missing.push('kad dolazi');
-    if (f.viewedManual === '' || Number(f.viewedManual) < 0) missing.push('koliko je pogledao');
-    if (!(f.chosen === 'none' || chosenIds.length)) missing.push('izabrana nekretnina');
-  }
-
   const save = (e) => {
     e.preventDefault();
-    if (missing.length) return;
-    if (dataOnly) {
-      actions.updateLeadFacts(lead.id, {
-        sentText: f.sentText.trim(), arrival: f.arrival, arrivalDate: f.arrivalDate, arrivalNote: f.arrivalNote.trim(),
-        viewedManual: f.viewedManual, viewedIds: parseIds(f.viewedText),
-        chosenIds: f.chosen === 'ids' ? chosenIds : f.chosen === 'none' ? [] : undefined,
-      });
-      onClose();
-      return;
-    }
-    actions.logContact(lead.id, {
+    const facts = {
       sentText: f.sentText.trim(), channel: f.channel,
-      arrivalDate: buyer && f.arrival === 'date' ? f.arrivalDate : lead.arrivalDate || null, arrivalNote: buyer && f.arrival === 'unknown' ? f.arrivalNote.trim() : lead.arrivalNote || '',
-      viewedManual: buyer ? f.viewedManual : lead.viewedManual ?? 0, viewedIds: buyer ? parseIds(f.viewedText) : [], chosenIds: buyer ? chosenIds : plannedIds(lead),
-      nextDate: f.noNext ? null : f.nextDate || null,
-    }, me);
+      arrival: buyer ? f.arrival : '', arrivalDate: f.arrivalDate, arrivalNote: f.arrivalNote.trim(),
+      viewedManual: buyer ? f.viewedManual : '', viewedIds: buyer ? parseIds(f.viewedText) : [],
+      chosenIds: !buyer ? undefined : f.chosen === 'ids' ? chosenIds : f.chosen === 'none' ? [] : undefined,
+    };
+    if (dataOnly) actions.updateLeadFacts(lead.id, facts);
+    else actions.logContact(lead.id, { ...facts, nextDate: f.noNext ? null : f.nextDate || null }, me);
     onClose();
   };
 
@@ -57,10 +40,10 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
   return (
     <Modal title={`${dataOnly ? 'Podaci' : 'Follow-up'}: ${lead.name}`} onClose={onClose}>
       <form onSubmit={save} className="space-y-4">
-        <p className="text-sm text-soft">{dataOnly ? 'Upiši što znaš. Ovo NE bilježi kontakt i ne mijenja rok follow-upa.' : buyer ? 'Odgovori na 4 pitanja su obavezni.' : 'Upiši što je poslano ili dogovoreno.'} <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span></p>
+        <p className="text-sm text-soft">{dataOnly ? 'Upiši što znaš. Ovo NE bilježi kontakt i ne mijenja rok follow-upa.' : buyer ? 'Pitanja su neobavezna: upiši što znaš, prazna polja ne mijenjaju ono što je već upisano.' : 'Upiši što je poslano ili dogovoreno (neobavezno).'} <span className={`badge ${TEMPERATURES[lead.temperature]?.badge}`}>{TEMPERATURES[lead.temperature]?.label}</span></p>
 
         <div>
-          <label className="label">1. Što mu je poslano / što ste dogovorili{dataOnly ? ' (neobavezno)' : ''}</label>
+          <label className="label">1. Što mu je poslano / što ste dogovorili</label>
           <textarea className="field min-h-[80px]" value={f.sentText} onChange={set('sentText')} autoFocus placeholder="npr. poslane 3 nove ponude za stanove u Opatiji" />
           {!dataOnly && <select className="field mt-2" value={f.channel} onChange={set('channel')} aria-label="Kanal">
             {Object.entries(CHANNELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -96,10 +79,9 @@ export default function ContactDialog({ lead, onClose, dataOnly }) {
           <p className="mt-1 text-xs text-mute">Prijedlog: vruć +4 dana, topao +7 dana. Slobodno promijeni.</p>
         </div>}
 
-        {missing.length > 0 && <p className="text-xs text-soft">Još nedostaje: {missing.join(', ')}.</p>}
         <div className="flex gap-2">
           <button type="button" onClick={onClose} className="btn-ghost ml-auto">Odustani</button>
-          <button className="btn-primary" disabled={missing.length > 0}>{dataOnly ? 'Spremi podatke' : 'Spremi i odradi'}</button>
+          <button className="btn-primary">{dataOnly ? 'Spremi podatke' : 'Spremi i odradi'}</button>
         </div>
       </form>
     </Modal>

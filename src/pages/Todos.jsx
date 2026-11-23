@@ -9,7 +9,7 @@ import FirmBadge, { FirmFilter, firmCardStyle } from '../components/FirmBadge';
 import { useFirm } from '../lib/firm';
 import TodoForm from '../components/TodoForm';
 import { PRIORITIES, isOverdue, sortTodos } from '../lib/todos';
-import { fmtShort } from '../lib/dates';
+import { fmtShort, today, plusDays } from '../lib/dates';
 import { TEMPERATURES, followUpState, leadOwner } from '../lib/leads';
 import ContactDialog from '../components/ContactDialog';
 import LeadDetail from '../components/LeadDetail';
@@ -115,19 +115,33 @@ export default function Todos() {
   const [undo, setUndo] = useState(null);
   const [contact, setContact] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [when, setWhen] = useState('danas'); // danas | sutra | tjedan | svi | datum
+  const [pickDate, setPickDate] = useState(plusDays(today(), 2));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
   );
 
   // odrađeni zadaci odmah nestaju s ploče (vide se u Arhiva → Odrađeni zadaci)
-  const visible = todos.filter((t) => !t.done).filter((t) => !firm || t.firm === firm);
+  // Razdoblje: Danas = kasne + danas (+ zadaci bez roka), Sutra = samo sutra, Tjedan = do +6 dana, Svi = sve, Datum = točno taj dan
+  const t0 = today(), tom = plusDays(t0, 1), wk = plusDays(t0, 6);
+  const inWhen = (d, noDateOk) => {
+    switch (when) {
+      case 'danas': return d ? d <= t0 : noDateOk;
+      case 'sutra': return d === tom;
+      case 'tjedan': return d ? d <= wk : noDateOk;
+      case 'datum': return d === pickDate;
+      default: return true;
+    }
+  };
+  const visible = todos.filter((t) => !t.done).filter((t) => !firm || t.firm === firm).filter((t) => inWhen(t.dueDate, true));
   const people = onlyMine ? [me] : TEAM;
-  // follow-upi kupaca kojima je rok danas ili je prošao
+  // follow-upi kupaca: po izabranom razdoblju ("Svi" = samo kasni i današnji, da ne bude stotine kartica)
   const followUps = leads
-    .filter((l) => ['late', 'today'].includes(followUpState(l)) && (!firm || l.firm === firm))
+    .filter((l) => ['late', 'today', 'soon'].includes(followUpState(l)) && (!firm || l.firm === firm))
+    .filter((l) => (when === 'svi' ? l.followUpDate <= t0 : inWhen(l.followUpDate, false)))
     .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
-  const overdueCount = todos.filter(isOverdue).length + followUps.filter((l) => followUpState(l) === 'late').length;
+  const overdueCount = todos.filter(isOverdue).length + leads.filter((l) => followUpState(l) === 'late').length;
   const counts = Object.fromEntries(Object.keys(FIRMS).map((k) => [k, todos.filter((t) => !t.done && t.firm === k).length]));
 
   const markDone = (todo) => {
@@ -156,6 +170,12 @@ export default function Todos() {
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <button onClick={() => setOnlyMine(!onlyMine)} className={onlyMine ? 'btn-primary' : 'btn-outline'}>Moji zadaci</button>
         <FirmFilter counts={counts} />
+      </div>
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        {[['danas', 'Danas'], ['sutra', 'Sutra'], ['tjedan', 'Ovaj tjedan'], ['svi', 'Svi'], ['datum', 'Odaberi dan']].map(([k, label]) => (
+          <button key={k} onClick={() => setWhen(k)} className={when === k ? 'btn-primary !py-1.5' : 'btn-outline !py-1.5'}>{label}</button>
+        ))}
+        {when === 'datum' && <input type="date" className="field !w-auto !py-2 text-sm" value={pickDate} onChange={(e) => setPickDate(e.target.value)} aria-label="Dan" />}
       </div>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>

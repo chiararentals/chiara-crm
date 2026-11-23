@@ -10,8 +10,9 @@ export const DEFAULT_DAYS = { vruc: 4, topao: 7 };
 export const suggestDate = (temperature) => plusDays(today(), DEFAULT_DAYS[temperature] ?? 7);
 export const isClosed = (l) => /^zatvoren/i.test(l.status || '');
 // Vrsta kontakta: kupac (zadano), vlasnik (nudi nekretninu, ugovor o posredovanju), ostalo
-export const KINDS = { kupac: 'Kupac', vlasnik: 'Vlasnik', ostalo: 'Ostalo' };
-export const leadKind = (l) => l.kind || 'kupac';
+export const KINDS = { kupac: 'Kupac', vlasnik: 'Vlasnik', najmoprimac: 'Najmoprimac', ostalo: 'Ostalo' };
+// Kupci uvezeni iz tablice s tipom „… (najam)” prikazuju se kao najmoprimci
+export const leadKind = (l) => l.kind || (/najam/i.test(l.type || '') ? 'najmoprimac' : 'kupac');
 // Prijedlozi iz maila i ignorirani se ne pokazuju u običnim popisima
 export const isHidden = (l) => !!(l.suggestion || l.ignored);
 // Ugovor o posredovanju: istekao / ističe u idućih 30 dana

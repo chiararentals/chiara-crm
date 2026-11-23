@@ -100,19 +100,27 @@ function SuggestionCard({ lead }) {
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="btn-primary !px-3 !py-1.5 text-xs" onClick={() => actions.acceptSuggestion(lead.id, 'kupac')}>Dodaj kao kupca</button>
         <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.acceptSuggestion(lead.id, 'vlasnik')}>Dodaj kao vlasnika</button>
+        <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => actions.acceptSuggestion(lead.id, 'najmoprimac')}>Dodaj kao najmoprimca</button>
         <button className="text-xs text-mute underline" onClick={() => actions.ignoreSuggestion(lead.id)}>Ignoriraj</button>
       </div>
     </div>
   );
 }
 
-// mode: 'kupci' (kupci i ostali kontakti) | 'vlasnici' (vlasnici nekretnina, svoja stranica)
+// mode: 'kupci' (kupci i ostali kontakti) | 'vlasnici' (prodavatelji i najmodavci) | 'najmoprimci'
+const MODE_KIND = { vlasnici: 'vlasnik', najmoprimci: 'najmoprimac' };
+const MODE_TEXT = {
+  kupci: { title: 'Kupci i leadovi', noun: 'kontakata', add: 'Novi kupac' },
+  vlasnici: { title: 'Vlasnici', noun: 'vlasnika', add: 'Novi vlasnik', empty: 'Još nema vlasnika. Dodajte ih gumbom „Novi vlasnik” ili iz prijedloga na stranici Kupci.' },
+  najmoprimci: { title: 'Najmoprimci', noun: 'najmoprimaca', add: 'Novi najmoprimac', empty: 'Još nema najmoprimaca. Dodajte ih gumbom „Novi najmoprimac” ili iz prijedloga na stranici Kupci.' },
+};
 export default function Leads({ mode = 'kupci' }) {
   const { leads: allLeads } = useData();
-  const owners = mode === 'vlasnici';
+  const owners = mode !== 'kupci'; // posebne stranice (vlasnici, najmoprimci)
+  const text = MODE_TEXT[mode];
   const leads = useMemo(
-    () => allLeads.filter((l) => !isHidden(l) && (owners ? leadKind(l) === 'vlasnik' : leadKind(l) !== 'vlasnik')),
-    [allLeads, owners]
+    () => allLeads.filter((l) => !isHidden(l) && (owners ? leadKind(l) === MODE_KIND[mode] : !['vlasnik', 'najmoprimac'].includes(leadKind(l)))),
+    [allLeads, owners, mode]
   );
   const suggestions = owners ? [] : allLeads.filter((l) => l.suggestion);
   const [kind, setKind] = useState('');
@@ -175,8 +183,8 @@ export default function Leads({ mode = 'kupci' }) {
 
   return (
     <>
-      <PageHeader title={owners ? 'Vlasnici' : 'Kupci i leadovi'}
-        subtitle={`${leads.length} ${owners ? 'vlasnika' : 'kontakata'} · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
+      <PageHeader title={text.title}
+        subtitle={`${leads.length} ${text.noun} · ${lateCount} kasni · ${todayCount} za danas${reviewCount ? ` · ${reviewCount} za provjeru` : ''}`}>
         <div className="flex flex-wrap items-center gap-2">
           {!owners && <select className="field !w-auto !py-2 text-sm" value={importFirm} onChange={(e) => setImportFirm(e.target.value)} aria-label="Firma za uvoz">
             <option value="dux">Uvoz u: Dux</option><option value="bonvia">Uvoz u: Bonvia</option><option value="chiara">Uvoz u: Chiara</option>
@@ -185,7 +193,7 @@ export default function Leads({ mode = 'kupci' }) {
           <button className="btn-outline" onClick={() => exportLeads(filtered).catch((e) => setMsg(`Izvoz nije uspio: ${e.message}`))}><Download size={16} /> Izvoz u Excel</button>
           {!owners && <button className="btn-outline" onClick={() => fileRef.current?.click()}><Upload size={16} /> Uvoz iz Excela</button>}
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} />
-          <button className="btn-primary" onClick={() => setForm(owners ? { kind: 'vlasnik' } : {})}><Plus size={18} /> {owners ? 'Novi vlasnik' : 'Novi kupac'}</button>
+          <button className="btn-primary" onClick={() => setForm(owners ? { kind: MODE_KIND[mode] } : {})}><Plus size={18} /> {text.add}</button>
         </div>
       </PageHeader>
 
@@ -238,7 +246,7 @@ export default function Leads({ mode = 'kupci' }) {
           <div className="grid gap-3 md:grid-cols-2">{suggestions.map((l) => <SuggestionCard key={l.id} lead={l} />)}</div>
         </section>
       )}
-      {!filtered.length && <div className="card p-5 text-sm text-soft">{owners ? 'Još nema vlasnika. Dodajte ih gumbom „Novi vlasnik” ili iz prijedloga na stranici Kupci.' : 'Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.'}</div>}
+      {!filtered.length && <div className="card p-5 text-sm text-soft">{owners ? text.empty : 'Nema kupaca. Dodaj ih ručno ili uvezi Excel tablicu.'}</div>}
       {SECTIONS.map(([st, title]) => {
         const list = st === 'review'
           ? filtered.filter((l) => l.review && followUpState(l) !== 'closed').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))

@@ -100,6 +100,15 @@ function syncViewings(lead, form) {
   }
   return viewings;
 }
+// Što se mijenja na kupcu kad se upišu odgovori; prazno polje = ne mijenjaj
+function factsPatch(lead, form) {
+  const patch = { viewings: syncViewings(lead, { viewedIds: form.viewedIds || [], chosenIds: form.chosenIds }) };
+  if (form.sentText) patch.lastSent = form.sentText;
+  if (form.arrival === 'date' && form.arrivalDate) { patch.arrivalDate = form.arrivalDate; patch.arrivalNote = ''; }
+  else if (form.arrival === 'unknown') { patch.arrivalDate = null; patch.arrivalNote = form.arrivalNote || ''; }
+  if (form.viewedManual !== '' && form.viewedManual != null) patch.viewedManual = Number(form.viewedManual) || 0;
+  return patch;
+}
 const patchList = (list, id, patch) => list.map((x) => (x.id === id ? { ...x, ...patch } : x));
 
 export const store = {
@@ -248,32 +257,27 @@ export const actions = {
   updateLeadFacts(leadId, form) {
     const lead = state.leads.find((l) => l.id === leadId);
     if (!lead) return;
-    const patch = { viewings: syncViewings(lead, { viewedIds: form.viewedIds || [], chosenIds: form.chosenIds }), factsPending: false };
-    if (form.sentText) patch.lastSent = form.sentText;
-    if (form.arrival === 'date') { patch.arrivalDate = form.arrivalDate; patch.arrivalNote = ''; }
-    if (form.arrival === 'unknown') { patch.arrivalDate = null; patch.arrivalNote = form.arrivalNote || ''; }
-    if (form.viewedManual !== '' && form.viewedManual != null) patch.viewedManual = Number(form.viewedManual) || 0;
-    commit({ ...state, leads: patchList(state.leads, leadId, patch) });
+    commit({ ...state, leads: patchList(state.leads, leadId, { ...factsPatch(lead, form), factsPending: false }) });
   },
   // Zabilježi kontakt (i time odradi follow-up). form: sentText, channel, arrivalDate, arrivalNote,
   // viewedManual, viewedIds[], chosenIds[], nextDate
   logContact(leadId, form, by) {
     const lead = state.leads.find((l) => l.id === leadId);
     if (!lead) return;
-    const viewings = syncViewings(lead, form);
-    const viewedCount = (Number(form.viewedManual) || 0) + viewedIds({ viewings }).length;
+    const patch = factsPatch(lead, form);
+    const after = { ...lead, ...patch };
     const contact = {
-      id: uid(), at: now(), by, channel: form.channel, sentText: form.sentText,
-      arrivalDate: form.arrivalDate || null, arrivalNote: form.arrivalNote || '',
-      viewedCount, chosen: form.chosenIds, nextDate: form.nextDate || null,
+      id: uid(), at: now(), by, channel: form.channel, sentText: form.sentText || '',
+      arrivalDate: after.arrivalDate || null, arrivalNote: after.arrivalNote || '',
+      viewedCount: (Number(after.viewedManual) || 0) + viewedIds(after).length,
+      chosen: (after.viewings || []).filter((v) => v.status === 'planned').map((v) => v.duxId), nextDate: form.nextDate || null,
     };
+    const gaveFacts = !!(form.sentText || form.arrival || (form.viewedManual !== '' && form.viewedManual != null) || (form.viewedIds || []).length || form.chosenIds);
     commit({
       ...state,
       leads: patchList(state.leads, leadId, {
-        contacts: [...(lead.contacts || []), contact],
-        viewings, viewedManual: Number(form.viewedManual) || 0,
-        lastSent: form.sentText, arrivalDate: contact.arrivalDate, arrivalNote: contact.arrivalNote,
-        lastContact: today(), followUpDate: form.nextDate || null, factsPending: false,
+        ...patch, contacts: [...(lead.contacts || []), contact],
+        lastContact: today(), followUpDate: form.nextDate || null, ...(gaveFacts ? { factsPending: false } : {}),
       }),
     });
   },

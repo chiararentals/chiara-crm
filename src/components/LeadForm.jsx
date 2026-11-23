@@ -11,7 +11,7 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
   const editing = !!lead;
   const [f, setF] = useState({
     name: '', firm: gFirm && gFirm !== 'chiara' ? gFirm : 'dux', temperature: 'topao', email: '', phone: '', language: '', source: '',
-    kind: 'kupac', propertyName: '', askingPrice: '', contractSigned: '', contractUntil: '', wants: '', nextStep: '', owner: 'Vanja', listingId: '', obstacle: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
+    kind: 'kupac', propertyName: '', askingPrice: '', contractSigned: '', contractUntil: '', moveInDate: '', people: '', pets: '', wants: '', nextStep: '', owner: 'Vanja', listingId: '', obstacle: '', followUpDate: '', notes: '', location: '', type: '', priceRange: '',
     ...defaults, ...lead,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -19,7 +19,7 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
   const save = (e) => {
     e.preventDefault();
     if (!f.name.trim()) return;
-    const data = { ...f, followUpDate: f.followUpDate || null, contractSigned: f.contractSigned || null, contractUntil: f.contractUntil || null };
+    const data = { ...f, followUpDate: f.followUpDate || null, contractSigned: f.contractSigned || null, contractUntil: f.contractUntil || null, moveInDate: f.moveInDate || null };
     if (editing) actions.updateLead(lead.id, data); else actions.addLead(data);
     onClose();
   };
@@ -65,7 +65,15 @@ export default function LeadForm({ lead, defaults = {}, onClose }) {
             <div><label className="label">Ugovor vrijedi do</label><input type="date" className="field" value={f.contractUntil || ''} onChange={set('contractUntil')} /></div>
           </div>
         )}
-        <div><label className="label">{f.kind === 'vlasnik' ? 'Što nudi / dogovor' : 'Što traži'}</label><textarea className="field min-h-[60px]" value={f.wants} onChange={set('wants')} /></div>
+        {f.kind === 'najmoprimac' && (
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-mist p-3">
+            <div><label className="label">Budžet (€/mj.)</label><input className="field" placeholder="npr. 900" value={f.priceRange || ''} onChange={set('priceRange')} /></div>
+            <div><label className="label">Useljenje od</label><input type="date" className="field" value={f.moveInDate || ''} onChange={set('moveInDate')} /></div>
+            <div><label className="label">Broj osoba</label><input className="field" placeholder="npr. 2 odrasla + dijete" value={f.people || ''} onChange={set('people')} /></div>
+            <div><label className="label">Kućni ljubimci</label><input className="field" placeholder="npr. pas" value={f.pets || ''} onChange={set('pets')} /></div>
+          </div>
+        )}
+        <div><label className="label">{f.kind === 'vlasnik' ? 'Što nudi / dogovor' : f.kind === 'najmoprimac' ? 'Što traži (lokacija, tip stana)' : 'Što traži'}</label><textarea className="field min-h-[60px]" value={f.wants} onChange={set('wants')} /></div>
         <div><label className="label">Prepreka</label><input className="field" value={f.obstacle || ''} onChange={set('obstacle')} /></div>
         <div><label className="label">Sljedeći korak</label><input className="field" value={f.nextStep} onChange={set('nextStep')} /></div>
         <div><label className="label">Napomena</label><textarea className="field min-h-[60px]" value={f.notes} onChange={set('notes')} /></div>

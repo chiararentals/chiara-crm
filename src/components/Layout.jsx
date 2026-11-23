@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, ChevronsUpDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { CalendarCheck, ListChecks, Archive, Settings, BedDouble, Users, BarChart3, KeyRound, DoorOpen, Ellipsis, ChevronsUpDown } from 'lucide-react';
 import { useMe } from '../lib/me';
 import { useFirm } from '../lib/firm';
 import { useAuth } from '../lib/auth';
@@ -8,11 +9,12 @@ import { TEAM, FIRMS } from '../seed';
 
 // firms: na kojim prikazima firme se stavka vidi (boravci/gosti su samo Chiara)
 const NAV = [
-  { to: '/', label: 'Danas', icon: CalendarCheck, end: true },
-  { to: '/zadaci', label: 'Zadaci', icon: ListChecks },
-  { to: '/kupci', label: 'Kupci', icon: Users, firms: ['', 'dux', 'bonvia'] },
-  { to: '/vlasnici', label: 'Vlasnici', icon: KeyRound, firms: ['', 'dux', 'bonvia'] },
-  { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'] },
+  { to: '/', label: 'Danas', icon: CalendarCheck, end: true, primary: true },
+  { to: '/zadaci', label: 'Zadaci', icon: ListChecks, primary: true },
+  { to: '/kupci', label: 'Kupci', icon: Users, firms: ['', 'dux', 'bonvia'], primary: true },
+  { to: '/vlasnici', label: 'Vlasnici', icon: KeyRound, firms: ['', 'dux', 'bonvia'], primary: true },
+  { to: '/najmoprimci', label: 'Najmoprimci', icon: DoorOpen, firms: ['', 'dux', 'bonvia'] },
+  { to: '/boravci', label: 'Boravci', icon: BedDouble, firms: ['', 'chiara'], primary: true },
   { to: '/pregled', label: 'Pregled', icon: BarChart3 },
   { to: '/arhiva', label: 'Arhiva', icon: Archive },
   { to: '/postavke', label: 'Postavke', icon: Settings },
@@ -40,6 +42,13 @@ export default function Layout() {
   const auth = useAuth();
   const { error } = useSync();
   const nav = NAV.filter((n) => !n.firms || n.firms.includes(firm));
+  // Mobitel: 4 glavne stavke u donjoj traci, ostalo pod „Više”
+  const bar = nav.filter((n) => n.primary).slice(0, 4);
+  const more = nav.filter((n) => !bar.includes(n));
+  const [moreOpen, setMoreOpen] = useState(false);
+  const loc = useLocation();
+  useEffect(() => setMoreOpen(false), [loc.pathname]);
+  const moreActive = more.some((n) => (n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)));
 
   return (
     <div className="min-h-screen lg:flex">
@@ -95,13 +104,30 @@ export default function Layout() {
       </div>
 
       {/* Donja navigacija – mobitel */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-30 bg-navy/40 lg:hidden" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] rounded-t-3xl bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="grid grid-cols-3 gap-2">
+              {more.map(({ to, label, icon: Icon, end }) => (
+                <NavLink key={to} to={to} end={end}
+                  className={({ isActive }) => `flex flex-col items-center gap-1 rounded-2xl p-3 text-xs font-semibold ${isActive ? 'bg-ink text-white' : 'bg-mist text-navy'}`}>
+                  <Icon size={22} /> {label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-black/5 bg-white lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {nav.map(({ to, label, icon: Icon, end }) => (
+        {bar.map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end}
             className={({ isActive }) => `flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${isActive ? 'text-navy' : 'text-mute'}`}>
             <Icon size={21} /> {label}
           </NavLink>
         ))}
+        <button onClick={() => setMoreOpen(!moreOpen)} className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ${moreActive || moreOpen ? 'text-navy' : 'text-mute'}`}>
+          <Ellipsis size={21} /> Više
+        </button>
       </nav>
     </div>
   );
